@@ -21,6 +21,16 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 ![Top view](figures/kinematic_top.svg)
 
 - DH table: d1 = 96.7, a2 = 137.0, a3 = 98.3, **d5 = 50** mm (J5 head removed → q5 = 0)
+- The servo angle q (0 = straight up) is not the DH angle θ → convert before the equations (only in `q_to_theta`):
+
+| Joint | θ (DH) | Why |
+|---|---|---|
+| J1 base | θ₁ = q₁ | base positive = counter-clockwise = positive θ about z₀ |
+| J2 shoulder | θ₂ = 90° − q₂ | θ₂ is measured from horizontal · upright = 90° |
+| J3 elbow | θ₃ = −q₃ | elbow leaning forward (positive q) = clockwise in the arm plane |
+| J4 wrist | θ₄ = 90° − q₄ | α₄ = 90°, so add 90° to make the head follow the link when straight |
+| J5 head | θ₅ = q₅ = 0 | removed · roll does not change position |
+
 - `T⁰₅ = A₁A₂A₃A₄A₅` → 4th column = position (x, y, z) · φ = θ2 + θ3 + θ4 − 90° (tip angle vs horizontal)
 
 ## 3. Inverse Kinematics: position → joint angles
@@ -37,8 +47,9 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 
 - **s(τ) = 10τ³ − 15τ⁴ + 6τ⁵**, τ = t / T → starts and ends with velocity = acceleration = 0 (no jerk at start/stop)
 - Every joint uses the same s(τ): q(t) = q₀ + (q₁ − q₀)·s(t/T) → **all joints arrive together**
-- Duration **T = 1.875 · Δ_max / v** (the peak velocity of s is 1.875 at τ = 0.5) · v = 150 °/s
-- Straight line to X Y Z (`goto_xyz`): split the line every 1 mm, IK at every point, same s(τ)
+- Duration **T = 1.875 · Δ_max / v** (the peak velocity of s is 1.875 at τ = 0.5) · v = 150 °/s · going to Standby uses v = **60 °/s** (e.g. 90° takes 2.8 s)
+- Straight line to X Y Z (`goto_xyz`): split the line every 1 mm, IK at every point, same s(τ) · T = 1.875 × max(length / 300 mm/s, time the fastest joint needs at 150 °/s)
+- **Dragging a slider** (`follow`): the goal keeps changing, so no s(τ) — chase it with acceleration a = **600 °/s²** and ceiling **v ≤ min(150, √(2a·|error|))** → it slows down and stops exactly at the goal
 
 ## 5. Jog: hold / release / brake before a limit
 
@@ -53,15 +64,17 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 ![Measured](figures/lookahead_measured.svg)
 
 - Measured: a thread set to 40 ms on Windows actually ticks every **27–52 ms**
-- Before: send "the current pose" + a fixed 60 ms → each step's distance varied with the tick → servo speed swung ±30%
-- Now: send **the pose 80 ms ahead** + 80 ms → servo speed = (goal − now) / 80 ms = v, always
+- Before: send "the current pose" + a fixed 60 ms → each step's distance varied with the tick → servo speed swung ±10.8 around a mean of 22.4 °/s (**±48%**)
+- Now: send **the pose 80 ms ahead** + 80 ms → servo speed = (goal − now) / 80 ms ≈ v (measured mean 25.9 °/s for a set 30 — the servo lags slightly)
 - Measured on the elbow jogging at 30 °/s: swing ±10.8 → **±5.8 °/s**, lag 4.4° → **2.5°**
 
 ## 7. Correcting sag after arriving (`Driver._correction`)
 
 ![Correction](figures/correction_loop.svg)
 
-error = q_target − q_actual → joints with |error| > 0.5° are sent q_target + 0.8·error (smoothly), ≤ 3 rounds, total ≤ ±5° · a first error > 5° = never got there, no correction
+wait 0.4 s for the arm to settle → error = q_target − q_actual → joints with |error| > 0.5°: **offset ← offset + 0.8·error**, then send **q_target + offset** (smoothly), ≤ 3 rounds, total offset ≤ ±5° · a first error > 5° = never got there, no correction
+
+- The offset **accumulates** each round (= integral control, one round at a time) → constant sag from gravity still reaches the goal · sending a fresh q_target + 0.8·error each round would never reach the goal (some error always remains)
 
 ## 8. Singularity: poses where the tip loses a direction (`singularity.py`)
 
