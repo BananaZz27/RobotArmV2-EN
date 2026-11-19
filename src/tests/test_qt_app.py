@@ -241,3 +241,22 @@ def test_ik_falls_back_to_nearest_phi(win):
     tip = forward_kinematics(win.link.q_actual)
     assert "using φ" in win.ik_result.toPlainText()
     assert abs(tip.x - f.x) < 0.5 and abs(tip.z - f.z) < 0.5
+
+
+def test_startup_connects_and_goes_standby(win):
+    arm = _fake_arm()
+    win.connect_fn = lambda: arm
+    win.startup()
+    win.driver.close()
+    assert not win.link.simulated and win.driver.mover.busy
+    assert win.q_target == pytest.approx(config.STANDBY_Q)
+
+
+def test_startup_without_arm_shows_sim_at_standby(win):
+    def boom():
+        raise serial.SerialException("no adapter")
+    win.connect_fn = boom
+    win.startup()
+    _run(win, 10.0)
+    assert win.link.simulated and win.link.q_actual[:4] == pytest.approx(config.STANDBY_Q[:4], abs=1e-6)
+    assert "simulated arm" in win.log_view.toPlainText()

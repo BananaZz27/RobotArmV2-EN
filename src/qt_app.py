@@ -401,6 +401,14 @@ class MainWindow(QMainWindow):
         self.connect_btn.setText("Connect" if link.simulated else "Disconnect")
         self._label("● Simulation" if link.simulated else "● Connected", "#888" if link.simulated else "#2a9d8f")
 
+    def startup(self):
+        """program start: connect to the arm by itself → go to Standby (cannot connect → the simulated arm goes to Standby)"""
+        self.log(f"Starting: connecting to the arm on {config.DIRECT_PORT}, then going to Standby ...")
+        self.toggle_connect()                        # connected → go_standby() already called inside
+        if self.link.simulated:
+            self.log("Could not connect → showing the simulated arm at Standby instead (press Connect to retry)")
+            self.go_standby()
+
     def toggle_connect(self):
         if not self.link.simulated:
             self._use_link(SimLink())
@@ -518,6 +526,7 @@ def main():
     app = QApplication(sys.argv)
     w = MainWindow()
     w.show()
+    QTimer.singleShot(300, w.startup)                # wait for the window (STOP visible), then connect + go to Standby
     sys.exit(app.exec())
 
 
