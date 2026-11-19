@@ -14,7 +14,7 @@ Looks like the earlier ws-control GUI (PyQt6 + PyVista 3D view) but **needs no E
 Forward Kinematics (Target pose): X Y Z φ Yaw + T⁰₅ + singularity check          Log
 ```
 
-- **Start:** `RobotArm.bat` → Simulation mode → **Connect** → the arm moves to the **Standby pose** by itself, slowly (20 °/s, after checking ≥ 6 V and all 4 servos; STOP/Space stops it)
+- **Start:** `RobotArm.bat` → Simulation mode → **Connect** → the arm moves to the **Standby pose** by itself, (60 °/s, after checking ≥ 6 V and all 4 servos; STOP/Space stops it)
 - **Standby pose:** put the arm in the pose you want → Joint tab → **📌 Set this pose as Standby** (saved to `src/config.py` `STANDBY_Q`) · the **⌂ Standby** button in the top bar goes there any time
 - **Joint:** drag a slider / type a number → the arm follows immediately (no speed limit to set — full servo speed with a short ramp up/down) · Zero = back to straight up
 - **Jog:** hold = keep moving, release = ease slowly to a stop (0.5·a to avoid bounce), then sag is corrected · per joint (J1–J4 ±) or tip in a straight line (X Y Z ±) — tip jog stops by itself before a singularity
