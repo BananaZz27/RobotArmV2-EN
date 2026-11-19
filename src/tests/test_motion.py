@@ -229,3 +229,10 @@ def test_jog_minus_z_at_horizontal_full_stretch_says_why():
     m.jog_xyz(2, -1)
     _run(m, 1.0, v_check=config.JOG_V)
     assert not m.busy and "fully stretched" in m.message
+
+
+def test_goto_q_with_slower_speed():
+    m = Mover([0, 0, 0, 0, 0], v=150)
+    m.goto_q([0, 0, 40, 0, 0], v=20)
+    traj = _run(m, 1.875 * 40 / 20 + 0.1, v_check=20)          # never above 20 °/s although the Mover is set to 150
+    assert traj[-1][2] == pytest.approx(40) and not m.busy

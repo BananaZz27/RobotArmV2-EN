@@ -16,7 +16,7 @@ import serial
 from PyQt6.QtCore import QLocale, Qt, QTimer
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
-                             QHBoxLayout, QLabel, QMainWindow, QPlainTextEdit, QPushButton, QSlider, QSplitter,
+                             QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSlider, QSplitter,
                              QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout, QWidget)
 
 import config
@@ -25,6 +25,7 @@ from kinematics import check_limits, forward_kinematics, inverse_kinematics
 from link import DirectLink, SimLink
 from motion import Mover, clamp_q
 from singularity import analyze, report
+from servo_calibrate import save_standby
 
 USED = [i for i, j in enumerate(config.JOINTS) if j["used"]]
 SLIDER_SCALE = 10      # sliders are int → ×10 for 0.1° resolution
@@ -45,9 +46,10 @@ def _set_quiet(widget, value):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, link=None, connect_fn=None, viewer=None):
+    def __init__(self, link=None, connect_fn=None, viewer=None, save_standby_fn=save_standby):
         super().__init__()
         self.connect_fn = connect_fn or (lambda: DirectLink(config.DIRECT_PORT))
+        self.save_standby = save_standby_fn          # tests pass a fake so config.py is not written
         self.link, self.driver = None, None
         self.q_target = [0.0] * 5
         self.torque_on = True
@@ -101,6 +103,10 @@ class MainWindow(QMainWindow):
         for w in (QLabel(f"Port {config.DIRECT_PORT}"), self.connect_btn, self.conn_label):
             bar.addWidget(w)
         bar.addStretch(1)
+        standby = QPushButton("⌂ Standby")
+        standby.setToolTip(f"Go to the Standby pose slowly ({config.STANDBY_V:.0f} °/s) — set the pose with 📌 in the Joint tab")
+        standby.clicked.connect(self.go_standby)
+        bar.addWidget(standby)
         bar.addWidget(self.torque_btn)
         bar.addWidget(stop)
         return bar
@@ -127,7 +133,11 @@ class MainWindow(QMainWindow):
 
         zero = QPushButton("Zero (straight up)")
         zero.clicked.connect(lambda: (self.set_target([0.0] * 5), self.send()))
+        pin = QPushButton("📌 Set this pose as Standby")
+        pin.setToolTip("Save the current Target pose to config.py — the next Connect moves the arm here")
+        pin.clicked.connect(self.set_standby_here)
         bar = QHBoxLayout()
+        bar.addWidget(pin)
         bar.addStretch(1)
         bar.addWidget(zero)
         hint = QLabel("Drag a slider / type a number → the arm follows immediately · orange in 3D = Target, "
@@ -273,7 +283,8 @@ class MainWindow(QMainWindow):
     # ================= Target pose =================
     def set_target(self, q):
         """set the pose to command → update sliders/spin boxes, FK, 3D view (does not send)"""
-        self.q_target = clamp_q([float(v) for v in q])
+        # joints that cannot be read (nan — servo not answering) keep their value: a nan slider value used to crash Connect
+        self.q_target = clamp_q([old if v is None or math.isnan(v) else float(v) for old, v in zip(self.q_target, q)])
         for i, (slider, spin, _a) in self.rows.items():
             _set_quiet(slider, int(round(self.q_target[i] * SLIDER_SCALE)))
             _set_quiet(spin, self.q_target[i])
@@ -413,6 +424,38 @@ class MainWindow(QMainWindow):
         self._use_link(link)
         self.set_target(link.q_actual)
         self.log(f"Connected to {config.DIRECT_PORT} — the arm holds in place, Target = actual pose")
+        self.go_standby()                            # every start → go to Standby by itself (slowly, after voltage/servo checks)
+
+    # ================= Standby pose =================
+    def go_standby(self):
+        """move to the Standby pose at STANDBY_V (slow) — not if voltage is low / a servo is missing / torque is off"""
+        q = config.STANDBY_Q
+        act = self.link.q_actual
+        if act is None or any(math.isnan(act[i]) for i in USED):
+            self.log("❌ Not going to Standby: not every servo is answering")
+            return False
+        if not self._ready(q):
+            return False
+        self.set_target(q)
+        self.driver.do(lambda m: m.goto_q(q, v=config.STANDBY_V))
+        self.log(f"⌂ Going to Standby ({config.STANDBY_V:.0f} °/s): "
+                 + "  ".join(f"{q[i]:.1f}" for i in USED) + " — press STOP / Space to stop")
+        return True
+
+    def set_standby_here(self):
+        """save the current Target pose as the Standby pose (writes config.py + takes effect now)"""
+        q = list(self.q_target)
+        text = "  ".join(f"{config.JOINTS[i]['name']} {q[i]:.1f}°" for i in USED)
+        if QMessageBox.question(self, "Set Standby pose", f"{text}\n\nUse this as the Standby pose?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.save_standby(q)
+        except ValueError as e:
+            self.log(f"❌ Standby pose not saved: {e}")
+            return
+        config.STANDBY_Q = [round(v, 1) for v in q]
+        self.log("📌 Standby pose saved: " + text)
 
     def _label(self, text, color, tip=""):
         self.conn_label.setText(text)

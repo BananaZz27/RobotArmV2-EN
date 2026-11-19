@@ -63,6 +63,10 @@ JOG_V_CART = 40.0          # tip jog (mm/s)
 JOG_STOP = 0.5             # releasing a jog button: decelerate at 0.5 × accel (measured: full decel made the arm bounce)
 IK_STEP_MM = 1.0           # step size when splitting a straight line into IK points
 
+# ---------- Standby pose: Connect moves the arm here slowly (set a new one with the 📌 button in the Joint tab) ----------
+STANDBY_Q = [0.0, 0.0, 90.0, 60.0, 0.0]
+STANDBY_V = 20.0           # speed when going to Standby (°/s) — the power-on pose may be far away, so much slower than the sliders
+
 # ---------- Correction when the arm stops short of the target (driver.py) ----------
 CORR_TOL = 0.5             # error at or below this counts as arrived (degrees)
 CORR_GAIN = 0.8            # correct by 0.8 × error per round

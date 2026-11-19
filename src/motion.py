@@ -41,12 +41,12 @@ class Mover:
         return self.mode is not None
 
     # ---------- commands ----------
-    def goto_q(self, q_goal):
-        """go to target angles in joint space (returns "" = accepted)"""
+    def goto_q(self, q_goal, v=None):
+        """go to target angles in joint space (returns "" = accepted) · v = max speed for this move only (e.g. slow Standby)"""
         goal = clamp_q(q_goal)
         start = list(self.q)
         dist = max(abs(g - s) for g, s in zip(goal, start))
-        self._set_path([start, goal], 1.875 * dist / self.v, goal)
+        self._set_path([start, goal], 1.875 * dist / (v or self.v), goal)
         return ""
 
     def goto_xyz(self, x, y, z, phi):

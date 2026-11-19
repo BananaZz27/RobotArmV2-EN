@@ -133,15 +133,63 @@ def test_connect_failure(win):
     assert win.link.simulated and "Cannot connect" in win.conn_label.text()
 
 
-def test_connect_success_target_is_actual(win):
+def _fake_arm(q=(5.0, 6.0, 7.0, 8.0, 0.0), volt=7.6):
     arm = SimLink()
-    arm.simulated, arm.volt, arm.q_actual = False, 7.6, [5.0, 6.0, 7.0, 8.0, 0.0]
+    arm.simulated, arm.volt, arm.q_actual = False, volt, list(q)
+    return arm
+
+
+def test_connect_goes_to_standby_slowly(win):
+    arm = _fake_arm()
     win.connect_fn = lambda: arm
     win.toggle_connect()
     win.driver.close()
-    assert win.q_target == [5.0, 6.0, 7.0, 8.0, 0.0] and win.connect_btn.text() == "Disconnect"
+    assert win.connect_btn.text() == "Disconnect" and "Standby" in win.log_view.toPlainText()
+    assert win.q_target == pytest.approx(config.STANDBY_Q) and win.driver.mover.busy
+    prev, t = list(arm.q_actual), time.monotonic()
+    for _ in range(int(12 / DT)):                      # farthest ~83° at 20 °/s → ~7.8 s
+        t += DT
+        win.driver.tick(now=t)
+        assert max(abs(a - b) for a, b in zip(arm.q_actual, prev)) <= config.STANDBY_V * 0.12 + 1e-6   # slow (≤ 20 °/s, 80 ms look-ahead)
+        prev = list(arm.q_actual)
+    assert arm.q_actual[:4] == pytest.approx(config.STANDBY_Q[:4], abs=1e-6)
     win.poll()
     assert "7.6" in win.conn_label.text()
+
+
+def test_connect_low_volt_does_not_move(win):
+    arm = _fake_arm(volt=5.2)
+    win.connect_fn = lambda: arm
+    win.toggle_connect()
+    win.driver.close()
+    assert not win.driver.mover.busy and "Servo voltage low" in win.log_view.toPlainText()
+
+
+def test_connect_missing_servo_does_not_move(win):
+    arm = _fake_arm(q=(5.0, float("nan"), 7.0, 8.0, 0.0))
+    win.connect_fn = lambda: arm
+    win.toggle_connect()
+    win.driver.close()
+    assert not win.driver.mover.busy and "not every servo" in win.log_view.toPlainText()
+
+
+def test_standby_button_in_sim(win):
+    assert win.go_standby()
+    _run(win, 10.0)
+    assert win.link.q_actual[:4] == pytest.approx(config.STANDBY_Q[:4], abs=1e-6)
+
+
+def test_set_standby_here(win, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+    saved, old = [], list(config.STANDBY_Q)
+    win.save_standby = saved.append
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    try:
+        win.set_target([10, 20, 30, 40, 0])
+        win.set_standby_here()
+        assert saved == [[10.0, 20.0, 30.0, 40.0, 0.0]] and config.STANDBY_Q == [10.0, 20.0, 30.0, 40.0, 0.0]
+    finally:
+        config.STANDBY_Q = old
 
 
 def test_no_speed_cap_default_fast(win):

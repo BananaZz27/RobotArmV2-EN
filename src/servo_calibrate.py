@@ -104,6 +104,19 @@ def save_calibration(values, py_path=CONFIG_PY):
     Path(py_path).write_text(py, encoding="utf-8")
 
 
+def save_standby(q, py_path=CONFIG_PY):
+    """write the Standby pose into the STANDBY_Q line of config.py (a joint out of limits / nan → ValueError, nothing written)"""
+    q = [round(float(v), 1) for v in q]
+    for i, (j, v) in enumerate(zip(config.JOINTS, q)):
+        if j["used"] and not config.Q_MIN[i] <= v <= config.Q_MAX[i]:      # nan also fails this check
+            raise ValueError(f"{j['name']} = {v}° outside {config.Q_MIN[i]:.1f}…{config.Q_MAX[i]:.1f}°")
+    text = Path(py_path).read_text(encoding="utf-8")
+    text, n = re.subn(r"^STANDBY_Q = \[[^\]]*\]", f"STANDBY_Q = {q}", text, flags=re.M)
+    if n != 1:
+        raise ValueError("STANDBY_Q line not found in config.py")
+    Path(py_path).write_text(text, encoding="utf-8")
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__ or "usage: servo_calibrate.py read | free j2 | hold j2 | sweep j2 [seconds]")
