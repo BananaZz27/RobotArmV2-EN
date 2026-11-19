@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="480" viewBox="0 0 680 480" role="img"><title>The two singularities of the 4-joint arm</title><desc>Left: tip on the base axis, r equals zero, turning the base does not move the tip. Right: arm straight, theta3 equals zero, cannot push out along the arm. Below: proof that det J equals r times a2 times a3 times sin theta3</desc><style>
+text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
+.ts{font-size:12px;fill:#444441}.th{font-size:14px;font-weight:500;fill:#2C2C2A}.tb{font-size:15px;font-weight:600;fill:#2C2C2A}
+.mono{white-space:pre;font-family:'Consolas','Courier New',monospace;font-size:13px;fill:#2C2C2A}
+.link{stroke:#888780;stroke-width:9;stroke-linecap:round;fill:none}.jt{fill:#EEEDFE;stroke:#534AB7;stroke-width:1.5}
+.bad{fill:#FCEBEB;stroke:#A32D2D}.box{fill:#F8F7F3;stroke:#B4B2A9}
+</style><rect width="680" height="480" fill="#FFFFFF"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<!-- case 1: tip over base axis -->
+<rect class="bad" x="20" y="16" width="310" height="230" rx="10" stroke-width="0.5"/>
+<text class="th" x="36" y="40" fill="#791F1F">① Tip on the base axis (r = 0)</text>
+<line x1="110" y1="220" x2="110" y2="56" stroke="#A32D2D" stroke-dasharray="4 4" stroke-width="1"/>
+<text class="ts" x="116" y="64">base axis z₀</text>
+<rect x="85" y="214" width="50" height="12" rx="3" fill="#D3D1C7"/>
+<polyline class="link" points="110,214 110,180 175,110 125,90 110,96"/>
+<circle class="jt" cx="110" cy="180" r="7"/><circle class="jt" cx="175" cy="110" r="7"/><circle class="jt" cx="125" cy="90" r="7"/><circle cx="110" cy="96" r="5" fill="#A32D2D"/>
+<path d="M80 236 A30 8 0 0 0 140 236" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text class="ts" x="150" y="232">turn base θ1</text>
+<text class="ts" x="200" y="130">the tip just spins in place</text>
+<text class="ts" x="200" y="148">→ cannot move sideways (y)</text>
+<text class="ts" x="200" y="172">det ∂(x,y)/∂(θ1, r) = r = 0</text>
+<!-- case 2: stretched -->
+<rect class="bad" x="350" y="16" width="310" height="230" rx="10" stroke-width="0.5"/>
+<text class="th" x="366" y="40" fill="#791F1F">② Arm straight / fully folded (θ3 = 0° / 180°)</text>
+<rect x="385" y="214" width="50" height="12" rx="3" fill="#D3D1C7"/>
+<polyline class="link" points="410,214 410,180 500,110 570,56"/>
+<circle class="jt" cx="410" cy="180" r="7"/><circle class="jt" cx="500" cy="110" r="7"/><circle cx="570" cy="56" r="5" fill="#A32D2D"/>
+<line x1="575" y1="52" x2="615" y2="21" stroke="#A32D2D" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+<text class="ts" x="520" y="150">a2 and a3 are in line</text>
+<text class="ts" x="520" y="168">→ cannot push out further</text>
+<text class="ts" x="520" y="186">(at full reach)</text>
+<text class="ts" x="520" y="210">planar det = a2·a3·sin θ3 = 0</text>
+<!-- proof -->
+<rect class="box" x="20" y="262" width="640" height="204" rx="10" stroke-width="0.5"/>
+<text class="tb" x="36" y="288">Proof: tip p = (x, y, z, φ) uses 4 joints (θ1…θ4) → Jacobian J = ∂p/∂θ is 4×4</text>
+<text xml:space="preserve" class="mono" x="36" y="316">1) base     x = r·cos θ1,  y = r·sin θ1          → det ∂(x,y)/∂(θ1,r)    = r</text>
+<text xml:space="preserve" class="mono" x="36" y="340">2) planar   r = a2·c2 + a3·c23 + d5·c234        → det ∂(r,z,φ)/∂(θ2,θ3,θ4)</text>
+<text xml:space="preserve" class="mono" x="36" y="360">             z = d1 + a2·s2 + a3·s23 + d5·s234      = a2·a3·sin θ3  (d5 cancels)</text>
+<text xml:space="preserve" class="mono" x="36" y="380">             φ = θ2 + θ3 + θ4 − 90°</text>
+<text class="tb" x="36" y="410">⇒ |det J| = r · a2 · a3 · |sin θ3|     = 0 when r = 0 or sin θ3 = 0</text>
+<text class="ts" x="36" y="434">Evidence: J computed numerically (each joint nudged 0.001°) → det equals the formula in every pose (300 random tests)</text>
+<text class="ts" x="36" y="454">Warns when r &lt; 20 mm or the elbow is within 10° of 0°/180° · tip jog stops before getting closer (can back out)</text>
+</svg>

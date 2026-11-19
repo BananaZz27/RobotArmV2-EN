@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="525" viewBox="0 0 680 525" role="img"><title>5-DOF diagram of the arm</title><desc>Side view of the 5-joint arm: base yaw, shoulder elbow wrist pitch, head roll, with link lengths and servo IDs</desc><style>
+text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
+.t{font-size:14px;fill:#2C2C2A}.ts{font-size:12px;fill:#444441}.th{font-size:14px;font-weight:500;fill:#2C2C2A}
+.c-purple{fill:#EEEDFE;stroke:#534AB7}.c-teal{fill:#E1F5EE;stroke:#0F6E56}.c-gray{fill:#F1EFE8;stroke:#5F5E5A}
+.leader{stroke:#888780;stroke-width:0.5;stroke-dasharray:3 3;fill:none}
+</style><rect width="680" height="525" fill="#FFFFFF"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<line x1="90" y1="450" x2="440" y2="450" stroke="#5F5E5A" stroke-width="0.5"/>
+<rect class="c-gray" x="145" y="428" width="50" height="22" rx="4" stroke-width="0.5"/>
+<path d="M134 430 A38 11 0 0 0 206 430" fill="none" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="170" y1="426" x2="170" y2="353.3" stroke="#888780" stroke-width="8" stroke-linecap="round"/>
+<line x1="170" y1="353.3" x2="227.9" y2="229.1" stroke="#888780" stroke-width="8" stroke-linecap="round"/>
+<line x1="227.9" y1="229.1" x2="320.3" y2="195.5" stroke="#888780" stroke-width="8" stroke-linecap="round"/>
+<line x1="320.3" y1="195.5" x2="398.8" y2="209.3" stroke="#888780" stroke-width="8" stroke-linecap="round"/>
+<line x1="402" y1="210" x2="430" y2="215" stroke="#5F5E5A" stroke-width="0.5" stroke-dasharray="3 3"/>
+<ellipse class="c-teal" cx="170" cy="426" rx="32" ry="7" stroke-width="0.5"/>
+<circle class="c-purple" cx="170" cy="353.3" r="9" stroke-width="1"/>
+<circle cx="170" cy="353.3" r="2" fill="#534AB7"/>
+<circle class="c-purple" cx="227.9" cy="229.1" r="9" stroke-width="1"/>
+<circle cx="227.9" cy="229.1" r="2" fill="#534AB7"/>
+<circle class="c-purple" cx="320.3" cy="195.5" r="9" stroke-width="1"/>
+<circle cx="320.3" cy="195.5" r="2" fill="#534AB7"/>
+<ellipse class="c-teal" cx="379" cy="205.8" rx="4" ry="11" stroke-width="1" transform="rotate(10 379 205.8)"/>
+<circle cx="398.8" cy="209.3" r="4" fill="#5F5E5A"/>
+<text class="ts" x="128" y="392" text-anchor="end">96.7 mm</text>
+<text class="ts" x="188" y="291" text-anchor="end">137.0 mm</text>
+<text class="ts" x="262" y="193" text-anchor="middle">98.3 mm</text>
+<text class="ts" x="365" y="234" text-anchor="middle">50 mm</text>
+<line class="leader" x1="320.3" y1="195.5" x2="462" y2="110"/>
+<text class="th" x="470" y="108">J4 wrist · pitch · ID 2</text>
+<text class="ts" x="470" y="126">+ leans forward</text>
+<line class="leader" x1="379" y1="205.8" x2="462" y2="165"/>
+<text class="th" x="470" y="163">J5 head · ID 1 (removed)</text>
+<text class="ts" x="470" y="181">locked q₅ = 0, does not affect position</text>
+<line class="leader" x1="227.9" y1="229.1" x2="462" y2="270"/>
+<text class="th" x="470" y="268">J3 elbow · pitch · ID 7</text>
+<text class="ts" x="470" y="286">+ leans forward</text>
+<line class="leader" x1="170" y1="353.3" x2="462" y2="345"/>
+<text class="th" x="470" y="343">J2 shoulder · pitch · ID 9</text>
+<text class="ts" x="470" y="361">+ leans forward</text>
+<line class="leader" x1="202" y1="426" x2="462" y2="425"/>
+<text class="th" x="470" y="423">J1 base · yaw · ID 4</text>
+<text class="ts" x="470" y="441">+ turns left (CCW)</text>
+<circle class="c-purple" cx="100" cy="480" r="6" stroke-width="1"/>
+<text class="ts" x="112" y="484">pitch: axis out of screen</text>
+<ellipse class="c-teal" cx="330" cy="480" rx="9" ry="5" stroke-width="1"/>
+<text class="ts" x="346" y="484">yaw / roll: rotates about the link's own axis</text>
+<text class="ts" x="100" y="508">pose shown q = (0°, 25°, 45°, 30°, 0°) · q = 0 for every joint = straight up</text>
+</svg>
