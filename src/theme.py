@@ -1,13 +1,13 @@
 # Window look: colours, fonts and the shared stylesheet (qt_app.py, viewer3d.py)
 #   buttons are styled by the "kind" property · labels by "role" · a card = QFrame named "card"
-#   2 themes: "dark" (default — plain dark, cyan only where it matters) / "light" — pick with env ROBOTARM_THEME=light
+#   2 themes: "light" (default — white cards on light grey) / "dark" (dark background) — pick with env ROBOTARM_THEME=dark
 import os
 
 from PyQt6.QtGui import QColor, QFont, QPalette
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-STYLE = os.environ.get("ROBOTARM_THEME", "dark")
-DARK = STYLE != "light"
+STYLE = os.environ.get("ROBOTARM_THEME", "light")
+DARK = STYLE == "dark"
 
 FONT_UI = "Leelawadee UI"                   # Windows UI font
 FONT_NUM = ["Bahnschrift", FONT_UI]         # big numbers (FK values): squared, easy-to-read gauge font
