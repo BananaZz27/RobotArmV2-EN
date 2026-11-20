@@ -1,6 +1,9 @@
 # A ⇄ B loop (auto_cycle.py) — pure state machine + saving/loading the point file
 import pytest
-from auto_cycle import AutoCycle, load_dwells, load_points, save_points
+import config
+from auto_cycle import DEMO, MAX_POINTS, AutoCycle, load_dwells, load_points, save_points
+from kinematics import check_limits, forward_kinematics
+from motion import Mover
 
 A, B = [0.0, 10.0, 20.0, 30.0], [40.0, 0.0, 60.0, -10.0]
 
@@ -120,3 +123,15 @@ def test_dwells_file_roundtrip(tmp_path):
     assert load_points(f) == [A, B] and load_dwells(f) == [0.5, 2.0]
     save_points([A, B], f)                            # file without waits → []
     assert load_dwells(f) == []
+
+
+def test_demo_poses_safe():
+    assert len(DEMO) == 7 and len(DEMO) <= MAX_POINTS
+    pts = [q for _, q, _ in DEMO]
+    for q in pts:
+        assert not check_limits(q)
+        assert min(min(v - lo, hi - v) for v, lo, hi in zip(q, config.Q_MIN, config.Q_MAX)) >= 10   # away from limits
+        assert forward_kinematics(q).z >= 80                               # clear of the table
+    for a, b in zip(pts, pts[1:] + pts[:1]):                               # every segment (incl. G → A) runs straight
+        m = Mover(a)
+        assert m.goto_line_q(b) == "" and m.message == ""

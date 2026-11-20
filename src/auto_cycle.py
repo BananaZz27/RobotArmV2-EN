@@ -120,3 +120,16 @@ def load_dwells(path=POINTS_FILE):
         return [None if v is None else max(0.0, float(v)) for v in data.get("dwells", [])][:MAX_POINTS]
     except (OSError, ValueError, TypeError, AttributeError):
         return []
+
+
+# sample poses A–G: pick a part on the left → place it on the right → back to ready (✨ button in the Auto tab)
+#   from IK (elbow up) · tip ≥ 90 mm above the floor · every joint ≥ 13° from its limit · every segment can run straight (tested)
+DEMO = [   # (name, q [°], wait [s])            (x, y, z) mm, φ
+    ("ready", [0.0, 25.3, 62.1, 32.6], 0.5),          # (200,    0, 200), −30°
+    ("above pick", [33.7, 37.4, 57.5, 65.0], 0.2),    # (165,  110, 150), −70°
+    ("pick", [33.7, 49.0, 69.7, 51.2], 1.0),            # (165,  110,  90), −80°  time to grip
+    ("lift", [33.7, 33.4, 61.2, 55.4], 0.2),           # (165,  110, 160), −60°
+    ("above place", [-33.7, 33.4, 61.2, 55.4], 0.2),     # (165, −110, 160), −60°
+    ("place", [-33.7, 49.0, 69.7, 51.2], 1.0),            # (165, −110,  90), −80°  time to release
+    ("lift off", [-33.7, 37.4, 57.5, 65.0], 0.2),         # (165, −110, 150), −70°
+]

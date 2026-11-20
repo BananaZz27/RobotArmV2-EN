@@ -413,3 +413,17 @@ def test_auto_add_copies_dwell_and_remove_drops_it(win):
     win.auto_dwell_spins[2].setValue(4)
     win.auto_remove(1)
     assert win.auto.dwells == [0.5, 4.0] and win.auto_dwell_spins[1].value() == 4
+
+
+def test_auto_load_demo_and_run(win):
+    win.auto_load_demo(ask=False)
+    assert len(win.auto.points) == 7 and len(win.auto_labels) == 7 and len(win.auto_dwell_spins) == 7
+    assert [n for n, _ in win.viewer.points] == list("ABCDEFG")
+    assert win.auto_dwell_spins[2].value() == 1.0                          # C pick: wait 1 s
+    win.auto_mode.setCurrentIndex(1)
+    win.auto_vcart.setValue(300)
+    win.auto_cycles.setValue(1)
+    win.auto_start()
+    _run_auto(win, 25)
+    assert win.auto.phase == "done" and win.auto.done == 1
+    assert win.link.q_actual == pytest.approx(win.auto.points[0], abs=0.1)
