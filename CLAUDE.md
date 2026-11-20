@@ -11,7 +11,7 @@ This repo is the English translation; code changes made in the Thai repo should 
 
 ## Code
 - Calibration lives only in `src/config.py` · 4-joint arm (J5 removed from the program 2026-11-20) · 4-row DH: a4 = 50 mm, θ₄ = −q₄, φ = θ2+θ3+θ4
-- `qt_app.py` (PyQt6, ws-control style) + `viewer3d.py` (PyVista) + `ik_explain.py`/`ik_sketch.py` (IK tab explains why a target is unreachable + drawing) + `theme.py` (colours/fonts/card stylesheet — buttons use the `kind` property, labels `role`) → `motion.py` (Mover, no hardware) → `driver.py` (40 ms thread) → `link.py` (DirectLink / SimLink)
+- `qt_app.py` (PyQt6, ws-control style) + `viewer3d.py` (PyVista) + `ik_explain.py`/`ik_sketch.py` (IK tab explains why a target is unreachable + drawing) + `theme.py` (sci-fi HUD theme by default, light theme: set env `ROBOTARM_THEME=light` — buttons use the `kind` property, labels `role`, cards `theme.Card`) → `motion.py` (Mover, no hardware) → `driver.py` (40 ms thread) → `link.py` (DirectLink / SimLink)
 - Windows region set to Thai → `qt_app.main()` forces QLocale en-US, otherwise spin boxes show Thai digits
 - Tests: `cd src && ../.venv/Scripts/python.exe -m pytest -q`
 - Windows: the 40 ms thread actually ticks every 27–52 ms → the driver sends "the pose STREAM_MS (80 ms) ahead + time 80 ms" (`Mover.peek`), otherwise jog is jerky (measured on the real arm 2026-11-19: elbow speed swing ±10.8 → ±5.8 °/s, lag 4.4° → 2.5°)

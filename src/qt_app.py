@@ -43,19 +43,19 @@ def _spin(lo, hi, step, suffix, value=0.0, decimals=1):
 
 def _ik_html(d):
     """IK result + reasons (ik_explain.Diagnosis) → HTML for the result box"""
-    color = "#2a9d8f" if d.exact else ("#c77d14" if d.q is not None else "#d1453b")
+    color = theme.OK if d.exact else (theme.WARN if d.q is not None else theme.BAD)
     out = [f"<p style='font-size:15px;font-weight:600;color:{color};margin:0'>{escape(d.headline)}</p>"]
-    for title, items, c in (("Why", d.reasons, "#d1453b"), ("Try", d.hints, "#2a6fdb"), ("Careful", d.warnings, "#c77d14")):
+    for title, items, c in (("Why", d.reasons, theme.BAD), ("Try", d.hints, theme.ACCENT), ("Careful", d.warnings, theme.WARN)):
         if items:
             out.append(f"<p style='margin:6px 0 0'><b style='color:{c}'>{title}</b></p><ul style='margin:0'>" +
                        "".join(f"<li>{escape(t)}</li>" for t in items) + "</ul>")
     rows = []
     for o in d.options:
         chosen = d.exact and o.ok and d.q is not None and all(abs(a - b) < 1e-6 for a, b in zip(o.geo.q, d.q))
-        mark, c = ("★", "#2a9d8f") if chosen else (("✓", "#2a9d8f") if o.ok else ("✗", "#d1453b"))
+        mark, c = ("★", theme.OK) if chosen else (("✓", theme.OK) if o.ok else ("✗", theme.BAD))
         q = "  ".join(f"{v:6.1f}" for v in o.geo.q) if o.geo.q is not None else "—"
         rows.append(f"<tr><td style='color:{c}'>{mark}</td><td>{o.name}</td><td style='font-family:Consolas'>{q}</td>"
-                    f"<td style='color:#d1453b'>{escape(o.why())}</td></tr>")
+                    f"<td style='color:{theme.BAD}'>{escape(o.why())}</td></tr>")
     out.append(f"<p style='margin:8px 0 2px'><b>4 poses at φ = {d.phi:.0f}°</b> (IK slides: θ₁ = Atan2 / π + Atan2 × elbow up/down"
                " · ★ = used · the program only uses the facing poses)</p>"
                "<table cellspacing='0' cellpadding='3'><tr><th></th><th align='left'>Pose</th>"
@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         ll.addWidget(self.log_view)
         log.setMaximumHeight(170)
 
-        central = QWidget()
+        central = theme.Backdrop()                  # พื้นหลัง (sci-fi: ตาราง HUD)
         lay = QVBoxLayout(central)
         lay.setContentsMargins(12, 12, 12, 12)
         lay.setSpacing(10)
@@ -142,10 +142,9 @@ class MainWindow(QMainWindow):
 
         title = QVBoxLayout()
         title.setSpacing(0)
-        title.addWidget(theme.label("RobotArm 4DOF", "app"))
+        title.addWidget(theme.glow(theme.label("RobotArm 4DOF", "app")))
         title.addWidget(theme.label(f"Port {config.DIRECT_PORT} · USB adapter → Feetech SCS15", "hint"))
-        frame = QFrame()
-        frame.setObjectName("header")
+        frame = theme.Card()
         bar = QHBoxLayout(frame)
         bar.setContentsMargins(16, 10, 12, 10)
         bar.setSpacing(10)
@@ -154,6 +153,9 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.connect_btn)
         bar.addWidget(self.conn_label)
         bar.addStretch(1)
+        self.clock = theme.label(theme.clock_text(), "clock")   # นาฬิกาแบบหน้าจอระบบ (เฉพาะ sci-fi)
+        bar.addWidget(self.clock)
+        bar.addSpacing(8)
         for w in (standby, self.torque_btn, stop):
             bar.addWidget(w)
         return frame
@@ -316,7 +318,7 @@ class MainWindow(QMainWindow):
             self.status_table.setRowHeight(r, 32)
             self.status_table.setItem(r, 0, QTableWidgetItem(config.JOINTS[i]["name"]))
         self.status_table.setFixedHeight(32 * len(USED) + 36)
-        self.summary = theme.label("", "title")
+        self.summary = theme.label("", "name")
         self.correct_box = QCheckBox("Correct sag after arriving")
         self.correct_box.setChecked(True)
         self.correct_box.toggled.connect(lambda on: setattr(self.driver, "correct", on))
@@ -333,8 +335,7 @@ class MainWindow(QMainWindow):
         grid.setHorizontalSpacing(18)
         self.fk_values = {}
         for k, (name, unit) in enumerate([("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("φ", "°"), ("Yaw", "°")]):
-            val = theme.label("0.0", "tile-value")
-            val.setFont(theme.mono(15, bold=True))
+            val = theme.glow(theme.label("0.0", "tile-value"), radius=14)
             val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             val.setMinimumWidth(84)
             grid.addWidget(theme.label(f"{name}  ({unit})", "tile-name"), 0, k, Qt.AlignmentFlag.AlignRight)
@@ -481,7 +482,7 @@ class MainWindow(QMainWindow):
         self.torque_on = True
         self.torque_btn.setText("Torque OFF")
         self.connect_btn.setText("Connect" if link.simulated else "Disconnect")
-        self._label("● Simulation" if link.simulated else "● Connected", "#888" if link.simulated else "#2a9d8f")
+        self._label("● Simulation" if link.simulated else "● Connected", theme.MUTED if link.simulated else theme.OK)
 
     def startup(self):
         """program start: connect to the arm by itself → go to Standby (cannot connect → the simulated arm goes to Standby)"""
@@ -499,7 +500,7 @@ class MainWindow(QMainWindow):
         try:
             link = self.connect_fn()
         except (serial.SerialException, OSError) as e:
-            self._label("● Cannot connect", "#e63946", str(e))
+            self._label("● Cannot connect", theme.BAD, str(e))
             self.log(f"❌ Cannot open {config.DIRECT_PORT} (adapter plugged in? another program using the port?): {e}")
             return
         end = time.monotonic() + 2.0
@@ -508,7 +509,7 @@ class MainWindow(QMainWindow):
             time.sleep(0.02)
         if link.q_actual is None:
             link.close()
-            self._label("● Servos not answering", "#e63946")
+            self._label("● Servos not answering", theme.BAD)
             self.log("❌ The port opened but no servo answers — servo power on at 7.4 V? jumper on B?")
             return
         self._use_link(link)
@@ -555,6 +556,7 @@ class MainWindow(QMainWindow):
     # ================= refresh every 50 ms =================
     def poll(self):
         link, m = self.link, self.driver.mover
+        self.clock.setText(theme.clock_text())
         if self.driver.message:
             self.log(self.driver.message)
             self.driver.message = ""
@@ -585,11 +587,11 @@ class MainWindow(QMainWindow):
                                  f"{'ON' if self.torque_on else 'OFF (can be moved by hand)'}   •   "
                                  f"{'offline' if not link.online() else 'moving' if m.busy else 'still'}")
             if not link.online():
-                self._label("● Offline (servos not answering)", "#e63946")
+                self._label("● Offline (servos not answering)", theme.BAD)
             elif low:
-                self._label(f"● Connected — servo voltage low {v} V (needs ≥ {config.VOLT_MIN:.0f} V)", "#f4a261")
+                self._label(f"● Connected — servo voltage low {v} V (needs ≥ {config.VOLT_MIN:.0f} V)", theme.WARN)
             else:
-                self._label(f"● Connected  {v:.1f} V", "#2a9d8f")
+                self._label(f"● Connected  {v:.1f} V", theme.OK)
 
     def log(self, text):
         self.log_view.appendPlainText(f"[{datetime.now():%H:%M:%S}] {text}")

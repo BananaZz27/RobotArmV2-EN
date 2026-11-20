@@ -8,10 +8,12 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 import config
+import theme
 from kinematics import forward_kinematics
 
 LINK_RADIUS, JOINT_RADIUS, AXIS_LENGTH = 9.0, 13.0, 40.0
 REACH = config.D1 + config.A2 + config.A3 + config.A4
+TIP = config.A2 + config.A3 + config.A4      # farthest tip from the base axis (arm straight, horizontal) — floor ring in the sci-fi theme
 ARROW_X_TO_Z = np.array([[0.0, 0, -1], [0, 1, 0], [1, 0, 0]])   # rotate an arrow pointing +x to point +z
 
 
@@ -75,13 +77,18 @@ class Viewer3D(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(p.interactor)
-        p.set_background("#f4f5f7", top="#dfe3ea")
+        v = theme.VIEW                                     # สีตามธีม (sci-fi: พื้นดำ ตารางนีออน)
+        p.set_background(v["bg"], top=v["top"])
         p.add_mesh(pv.Plane(i_size=2.4 * REACH, j_size=2.4 * REACH, i_resolution=12, j_resolution=12),
-                   color="#c9ced6", style="wireframe", line_width=1, pickable=False)
+                   color=v["grid"], style="wireframe", line_width=1, pickable=False)
         p.add_mesh(pv.Cylinder(center=(0, 0, 8), direction=(0, 0, 1), radius=45, height=16),
-                   color="#5b6270", smooth_shading=True, pickable=False)
+                   color=v["base"], smooth_shading=True, pickable=False)
+        if v["ring"]:                                      # วงระยะเอื้อมสุดบนพื้น (แบบโฮโลแกรม)
+            for k, rad in enumerate((TIP, TIP / 2)):
+                p.add_mesh(pv.Circle(radius=rad, resolution=120), color=v["ring"], style="wireframe",
+                           line_width=2 - k, opacity=0.7 - 0.3 * k, pickable=False)
         p.add_axes(line_width=2)
-        self.actual = ArmVisual(p, "#3a86ff", 0.35, False)
+        self.actual = ArmVisual(p, theme.ACTUAL, 0.35, False)
         self.target = ArmVisual(p, "#ff8c42", 1.0, True)
         self.actual.set_visible(False)
         self._marker = p.add_mesh(pv.Sphere(radius=7), color="#2ec4b6", pickable=False)
