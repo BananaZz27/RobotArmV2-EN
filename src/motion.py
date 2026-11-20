@@ -1,6 +1,6 @@
 # Smooth pose streamer (design: docs/design.md) — computes the next pose every dt seconds, never touches hardware (testable)
 #   goto_q   go to target angles: every joint shares one min-jerk profile → slow start, ease in, all arrive together
-#   goto_xyz the tip travels a straight line to a point (IK every ~1 mm)
+#   goto_xyz the tip travels a straight line to a point (IK every ~1 mm) · goto_line_q straight line to a saved pose (Auto tab)
 #   jog_*    hold = accelerate up to the set speed · release() = ease out to a stop
 #   follow   chase a target that can change at any time (slider) with limited speed/acceleration
 import copy
@@ -48,33 +48,47 @@ class Mover:
         self._set_path([start, goal], 1.875 * dist / (v or self.v), goal)
         return ""
 
-    def goto_xyz(self, x, y, z, phi):
-        """tip travels a straight line to (x, y, z) mm, φ degrees · if the end point has no IK = no move, returns the reason"""
+    def goto_xyz(self, x, y, z, phi, v_cart=None):
+        """tip moves in a straight line to (x, y, z) mm, φ degrees · end not solvable by IK = no move, returns the reason"""
         elbow_up = self.q[2] >= 0
         end = inverse_kinematics(x, y, z, phi, elbow_up, theta1_prev=self.q[0])
         if not end.ok:
             self.message = end.reason
             return end.reason
+        return self._line_to(np.array([x, y, z], dtype=float), phi, end.q, elbow_up, v_cart)
+
+    def goto_line_q(self, q_goal, v_cart=None):
+        """tip moves in a straight line to pose q_goal (ends exactly at q_goal — used by the Auto tab) · v_cart = mm/s for this move"""
+        goal = clamp_q(q_goal)
+        f = forward_kinematics(goal)
+        return self._line_to(np.array([f.x, f.y, f.z]), f.phi, goal, goal[2] >= 0, v_cart)
+
+    def _line_to(self, p1, phi, q_end, elbow_up, v_cart=None):
+        """IK every ~1 mm along the straight line from the current pose to p1 (last point = q_end) · not possible → joint move instead"""
         f0 = forward_kinematics(self.q)
-        p0, p1 = np.array([f0.x, f0.y, f0.z]), np.array([x, y, z])
+        p0 = np.array([f0.x, f0.y, f0.z])
         length = float(np.linalg.norm(p1 - p0))
         n = max(1, math.ceil(length / config.IK_STEP_MM))
         points, q_prev = [list(self.q)], self.q
-        for k in range(1, n + 1):                    # IK point by point along the line (φ also interpolated linearly)
+        for k in range(1, n):                        # IK point by point along the line (φ also changes linearly)
             s = k / n
-            p = p0 + s * (p1 - p0)
-            ik = inverse_kinematics(*p, f0.phi + s * (phi - f0.phi), elbow_up, theta1_prev=q_prev[0])
-            if not ik.ok:                            # a point on the way fails → go in joint space instead
-                self.goto_q(end.q)
+            ik = inverse_kinematics(*(p0 + s * (p1 - p0)), f0.phi + s * (phi - f0.phi), elbow_up, theta1_prev=q_prev[0])
+            if not ik.ok:                            # mid-way not reachable → joint move instead
+                self.goto_q(q_end)
                 self.message = "Straight line passes an unreachable point → moving joint-by-joint instead"
                 return ""
             points.append(clamp_q(ik.q))
             q_prev = ik.q
-        # timing: tip ≤ v_cart and every joint ≤ v (peak speed of min-jerk = 1.875 × distance / T)
+        points.append(list(q_end))
+        if max(abs(a - b) for a, b in zip(points[-2], points[-1])) > 10:   # end pose on another branch (elbow/base flip) → no straight line
+            self.goto_q(q_end)
+            self.message = "Straight line passes an unreachable point → moving joint-by-joint instead"
+            return ""
+        # time: tip ≤ v_cart and every joint ≤ v (min-jerk peak speed = 1.875 × distance / T)
         joint_rate = max(max(abs(b - a) for a, b in zip(p, q)) for p, q in zip(points, points[1:])) * n
-        t_cart, t_joint = length / self.v_cart, joint_rate / self.v
-        if t_joint > 3 * t_cart + 1.0:               # line passes near full stretch, joints must spin very fast → too slow to use
-            self.goto_q(end.q)
+        t_cart, t_joint = length / (v_cart or self.v_cart), joint_rate / self.v
+        if t_joint > 3 * t_cart + 1.0:               # line passes near full stretch, joints would have to spin very fast → too slow to use
+            self.goto_q(q_end)
             self.message = "Near full stretch → moving joint-by-joint instead of a straight line"
             return ""
         self._set_path(points, 1.875 * max(t_cart, t_joint), points[-1])

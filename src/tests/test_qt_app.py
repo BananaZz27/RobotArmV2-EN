@@ -18,7 +18,7 @@ APP = QApplication.instance() or QApplication([])
 class FakeViewer(QWidget):
     def __init__(self):
         super().__init__()
-        self.target = self.actual = self.marker = None
+        self.target = self.actual = self.marker = self.points = None
 
     def show_target(self, q):
         self.target = list(q)
@@ -28,6 +28,9 @@ class FakeViewer(QWidget):
 
     def show_ik_marker(self, xyz):
         self.marker = xyz
+
+    def show_points(self, pts):
+        self.points = pts
 
 
 @pytest.fixture
@@ -319,7 +322,7 @@ def test_auto_points_saved_and_loaded(win, tmp_path):
 
 def test_auto_needs_points(win):
     win.auto_start()
-    assert not win.auto.running and "Save points A and B" in win.log_view.toPlainText()
+    assert not win.auto.running and "Save every point" in win.log_view.toPlainText()
 
 
 @pytest.mark.parametrize("action", ["stop", "jog", "torque"])
@@ -351,3 +354,33 @@ def test_auto_finish_cycle_button(win):
     win.auto_finish_cycle()                                        # unlimited → finish this cycle, then stop
     _run_auto(win, 8)
     assert win.auto.phase == "done" and win.auto.done == 1
+
+
+def test_auto_three_points_line_mode_and_3d(win):
+    pts = [[0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0], [-20.0, 10.0, 70.0, 0.0]]
+    _teach(win, pts[0], pts[1])
+    win.set_target(pts[2])
+    win.auto_add()                                                    # ＋ Add point = current Target pose
+    assert win.auto.points == pts and len(win.auto_labels) == 3
+    assert [n for n, _ in win.viewer.points] == ["A", "B", "C"]        # 3D view shows A B C
+    win.auto_mode.setCurrentIndex(1)                                   # straight line
+    win.auto_vcart.setValue(300)
+    win.auto_dwell.setValue(0)
+    win.auto_cycles.setValue(1)
+    win.auto_start()
+    _run_auto(win, 12)
+    assert win.auto.phase == "done" and win.auto.done == 1
+    assert win.link.q_actual == pytest.approx(pts[0], abs=0.1)
+
+
+def test_auto_remove_point_and_edit_locked_while_running(win):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.set_target([-20.0, 10.0, 70.0, 0.0])
+    win.auto_add()
+    win.auto_remove(1)                                                 # delete B → C becomes B
+    assert win.auto.points == [[0.0, 20.0, 60.0, 10.0], [-20.0, 10.0, 70.0, 0.0]]
+    win.auto_remove(0)                                                 # only 2 left → not deleted
+    assert len(win.auto.points) == 2
+    win.auto_start()
+    win.auto_add()
+    assert len(win.auto.points) == 2 and "Cannot edit the sequence" in win.log_view.toPlainText()

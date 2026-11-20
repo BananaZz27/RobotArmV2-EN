@@ -92,6 +92,7 @@ class Viewer3D(QWidget):
         self.actual.set_visible(False)
         self._marker = p.add_mesh(pv.Sphere(radius=7), color="#2ec4b6", pickable=False)
         self._marker.SetVisibility(False)
+        self._point_actors = []                            # Auto tab work points (spheres + labels + sequence line)
         self.target.update([0] * 4)
         p.camera_position = [(REACH * 1.6, -REACH * 1.6, REACH * 1.2), (0, 0, REACH * 0.35), (0, 0, 1)]
         self._dirty = True
@@ -113,6 +114,24 @@ class Viewer3D(QWidget):
         self._marker.SetVisibility(bool(xyz is not None))
         if xyz is not None:
             self._marker.user_matrix = _translate(xyz)
+        self._dirty = True
+
+    def show_points(self, pts):
+        """Auto tab work points: [(label, (x, y, z)), ...] → spheres + labels A B C … + a line in work order (closed back to A)"""
+        p, color = self.plotter, theme.VIEW["points"]
+        for actor in self._point_actors:
+            p.remove_actor(actor)
+        self._point_actors = []
+        if pts:
+            xyz = np.array([c for _, c in pts], dtype=float)
+            for c in xyz:
+                self._point_actors.append(p.add_mesh(pv.Sphere(radius=6, center=c), color=color, pickable=False))
+            if len(xyz) >= 2:
+                loop = pv.lines_from_points(np.vstack([xyz, xyz[:1]]))
+                self._point_actors.append(p.add_mesh(loop, color=color, line_width=2, opacity=0.6, pickable=False))
+            self._point_actors.append(p.add_point_labels(xyz + [0, 0, 14], [name for name, _ in pts], font_size=16,
+                                                         bold=True, text_color=color, shape_opacity=0.0,
+                                                         show_points=False, always_visible=True))
         self._dirty = True
 
     def _render(self):

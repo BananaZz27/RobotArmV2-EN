@@ -69,3 +69,34 @@ def test_points_file_roundtrip(tmp_path):
     assert load_points(f) == [A, None]
     f.write_text("{bad json", encoding="utf-8")
     assert load_points(f) == [None, None]            # broken file → start fresh, no crash
+
+
+def test_three_point_sequence():
+    C = [10.0, 30.0, 40.0, 0.0]
+    c = AutoCycle([A, B, C], dwell=0, cycles=1)
+    assert c.start(0) == A
+    _arrive(c, 1, A)
+    assert c.update(1.1, False, A) == B
+    _arrive(c, 2, B)
+    assert c.update(2.1, False, B) == C                               # A → B → C → A
+    _arrive(c, 3, C)
+    assert c.update(3.1, False, C) == A
+    _arrive(c, 4, A)
+    assert c.phase == "done" and c.done == 1
+
+
+def test_points_file_old_format_and_many_points(tmp_path):
+    f = tmp_path / "pts.json"
+    f.write_text('{"A": [1, 2, 3, 4], "B": null}', encoding="utf-8")   # old file format (only A, B)
+    assert load_points(f) == [[1.0, 2.0, 3.0, 4.0], None]
+    save_points([A, B, A], f)
+    assert load_points(f) == [A, B, A]
+
+
+def test_approaching_only_until_first_point():
+    c = AutoCycle([A, B], dwell=0)
+    assert not c.approaching
+    c.start(0)
+    assert c.approaching                              # first run to A
+    _arrive(c, 1, A)
+    assert not c.approaching

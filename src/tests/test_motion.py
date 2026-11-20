@@ -243,3 +243,33 @@ def test_jog_away_from_limit_moves(i, at_max):
     for _ in range(25):
         m.step(0.04)
     assert abs(m.q[i] - q[i]) > 5
+
+
+# ---------- goto_line_q: straight line to a saved pose (Auto tab) ----------
+def test_goto_line_q_straight_and_exact_end():
+    q0, q1 = [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0]
+    m = Mover(q0)
+    assert m.goto_line_q(q1, v_cart=100) == "" and m.mode == "path"
+    p0 = forward_kinematics(q0)
+    p1 = forward_kinematics(q1)
+    a, b = np.array([p0.x, p0.y, p0.z]), np.array([p1.x, p1.y, p1.z])
+    worst, t = 0.0, 0.0
+    while m.busy:
+        m.step(0.01)
+        t += 0.01
+        f = forward_kinematics(m.q)
+        p = np.array([f.x, f.y, f.z])
+        s = np.clip(np.dot(p - a, b - a) / np.dot(b - a, b - a), 0, 1)
+        worst = max(worst, float(np.linalg.norm(p - (a + s * (b - a)))))
+    assert m.q == pytest.approx(q1)                                   # ends exactly at the saved pose
+    assert worst < 1.0                                                # tip never leaves the line by more than 1 mm
+    assert t == pytest.approx(1.875 * np.linalg.norm(b - a) / 100, rel=0.1)   # speed follows v_cart
+
+
+def test_goto_line_q_other_elbow_falls_back_to_joint_move():
+    m = Mover([0.0, 20.0, 60.0, 10.0])
+    goal = [0.0, 60.0, -60.0, 40.0]                                    # elbow on the other side → no straight line
+    assert m.goto_line_q(goal) == "" and m.message
+    while m.busy:
+        m.step(0.02)
+    assert m.q == pytest.approx(goal)

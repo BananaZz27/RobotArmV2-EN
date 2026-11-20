@@ -1,4 +1,4 @@
-# Automatic A → B → A … loop, like a factory machine (no GUI → testable)
+# Automatic A → B → C … → A loop, like a factory machine (no GUI → testable)
 #   the window calls update() every poll with whether the arm is still moving (mover.busy) and the commanded pose (mover.q)
 #   update() returns "the next point to command" (or None = wait) — commanding + safety checks happen in the window (_ready)
 #
@@ -10,11 +10,12 @@ from pathlib import Path
 
 ARRIVE_TOL = 0.5        # commanded pose within 0.5° of the point on every joint = arrived (more = stopped on the way)
 POINTS_FILE = Path(__file__).resolve().parent.parent / "auto_points.json"   # saved points (not in git)
+MAX_POINTS = 8          # most points in a work sequence (A … H)
 
 
 @dataclass
 class AutoCycle:
-    points: list                         # [[q1..q4], ...] — points A, B (in running order)
+    points: list                         # [[q1..q4], ...] — points A, B, C … (in running order)
     speed: float = 60.0                  # max joint speed (°/s)
     dwell: float = 0.5                   # wait at each point (s) — e.g. time to pick/place a part
     cycles: int = 0                      # number of cycles (0 = unlimited, until Stop)
@@ -35,6 +36,11 @@ class AutoCycle:
         self.running, self.phase, self.index, self.done = True, "move", 0, 0
         self.last_cycle_s, self.reason, self._cycle_start, self._first_arrival = None, "", None, True
         return self.points[0]
+
+    @property
+    def approaching(self):
+        """first move to the first point (from any pose — the window always uses a joint move, never a line through odd poses)"""
+        return self.running and self._first_arrival
 
     def stop(self, reason="stopped by the user"):
         if self.running:
@@ -87,14 +93,15 @@ class AutoCycle:
 
 
 def load_points(path=POINTS_FILE):
-    """points saved last time → [qA, qB] (no/unreadable file = [None, None])"""
+    """points saved last time → [q, q, ...] (no/unreadable file = [None, None] — empty A, B)"""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        pts = [data.get("A"), data.get("B")]
-        return [[float(v) for v in p] if p else None for p in pts]
-    except (OSError, ValueError, TypeError, AttributeError):
+        pts = data["points"] if "points" in data else [data.get("A"), data.get("B")]   # old format had only A, B
+        pts = [[float(v) for v in p] if p else None for p in pts][:MAX_POINTS]
+        return pts + [None] * (2 - len(pts))
+    except (OSError, ValueError, TypeError, AttributeError, KeyError):
         return [None, None]
 
 
 def save_points(points, path=POINTS_FILE):
-    Path(path).write_text(json.dumps({"A": points[0], "B": points[1]}, indent=1), encoding="utf-8")
+    Path(path).write_text(json.dumps({"points": points}, indent=1), encoding="utf-8")
