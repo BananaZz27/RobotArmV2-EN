@@ -13,6 +13,7 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 | `driver.py` | thread that sends poses to the arm + safety + correction (sections 6–7) |
 | `link.py` / `scs.py` | q ↔ raw conversion, then SCS packets over COM11 |
 | `kinematics.py` / `singularity.py` | FK, IK (sections 2–3) · singularity check (section 8) |
+| `ik_explain.py` / `ik_sketch.py` | why IK cannot reach a target + the drawing in the IK tab (section 3.1) |
 
 ## 2. Forward Kinematics: joint angles → tip position
 
@@ -105,6 +106,23 @@ T⁰₂ = A1·A2                       T⁰₃ = T⁰₂·A3                    
 1. θ1 = atan2(y, x) · 2. step back from the tip to the wrist along φ · 3. law of cosines gives θ3 · 4. θ2 · 5. θ4 = φ − θ2 − θ3
 - **Near the base axis** (r < 30 mm) the slides' second solution θ1 + 180° with negative r is used when it is closer to the current base angle — otherwise a tip 0.2 mm behind the axis made atan2 jump to 180° (base out of limit)
 - **φ not reachable** (position reachable, angle not) → the window finds the nearest reachable φ (1° steps) and says so in the Log
+
+### 3.1 Why a target cannot be reached (shown in the IK tab — `ik_explain.py`, `ik_sketch.py`)
+
+![IK reasons](figures/ik_why.png)
+
+Preview / Go runs through the IK steps and draws a side view (green ring = where the wrist can be, red = what cannot be reached):
+
+| Check | Fails when | Example message |
+|---|---|---|
+| tip distance from the shoulder axis | > a2 + a3 + a4 = 285.3 mm | Too far … 44.7 mm short → move the target towards the shoulder axis |
+| wrist (a4 back from the target along φ) | outside \|a2 − a3\| … a2 + a3 = 38.7 … 235.3 mm from the shoulder | wrist is 254.3 mm from the shoulder … 19.0 mm short |
+| joint limits | needed angle outside Q_MIN … Q_MAX | J4 Wrist needs −77.0° but can do −73.1…78.2° (3.9° over) |
+| base | target behind the base (needs 180°) | the base only turns −129.0…115.8° |
+
+- Tries **all 4 poses from the slides**: facing θ₁ = Atan2 / facing away θ₁ = π + Atan2 × elbow up/down, and says why each one fails (the program only uses the facing poses on the real arm)
+- Shows the **reachable φ ranges** at that position, e.g. −106…−4°, and warns when the target is below the base (z < 0 — the limits do not protect the table yet)
+- The pose the arm really takes keeps the old rule (elbow up → elbow down → nearest φ); this only adds the explanation
 
 ## 4. Smooth motion: the min-jerk profile (`Mover.goto_q`)
 

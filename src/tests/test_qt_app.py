@@ -260,3 +260,16 @@ def test_startup_without_arm_shows_sim_at_standby(win):
     _run(win, 10.0)
     assert win.link.simulated and win.link.q_actual[:4] == pytest.approx(config.STANDBY_Q[:4], abs=1e-6)
     assert "simulated arm" in win.log_view.toPlainText()
+
+
+def test_ik_unreachable_shows_reason_and_sketch(win):
+    win.ik_x.setValue(400)
+    win.ik_y.setValue(0)
+    win.ik_z.setValue(100)
+    win.ik_phi.setValue(0)
+    win.ik_solve(send=True)
+    text = win.ik_result.toPlainText()
+    assert "Cannot reach this point" in text and "Too far" in text and "Try" in text
+    assert win.ik_sketch.d is not None and win.ik_sketch.d.q is None
+    assert not win.driver.mover.busy
+    win.ik_sketch.grab()                              # draws without error

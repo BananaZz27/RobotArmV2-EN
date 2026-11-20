@@ -102,33 +102,50 @@ def check_limits(q):
     return " · ".join(bad) if bad else None
 
 
-def inverse_kinematics(x, y, z, phi=-90.0, elbow_up=True, theta1_prev=0.0):
-    """tip position (x, y, z) mm + tip angle φ (degrees) → servo angles q"""
+@dataclass
+class IKGeo:
+    """IK result before the limit check — keeps the intermediate values to explain to the user (ik_explain.py)"""
+    q: list | None    # servo angles (limits not checked) · None = wrist out of reach
+    theta1: float     # base angle used (degrees)
+    r: float          # horizontal tip distance along θ₁ (negative = arm facing away)
+    rc: float         # wrist: horizontal distance
+    s: float          # wrist: height above the shoulder axis
+    dist: float       # wrist distance from the shoulder axis √(rc² + s²)
+
+
+REACH_MIN, REACH_MAX = abs(A2 - A3), A2 + A3     # shoulder → wrist distances that links a2, a3 can make
+
+
+def solve_ik(x, y, z, phi=-90.0, elbow_up=True, theta1_prev=0.0, flip=None):
+    """IK without the limit check · flip: None = choose (near the base axis it may face away), False = facing θ₁ = atan2(y, x),
+    True = facing away θ₁ + 180° (the slides' second solution θ₁ = π + Atan2)"""
     phi_r = np.radians(phi)
 
     # θ₁: the slides write θ₁ = Atan2(xc, yc) in Spong's convention (arguments = cos, sin)
-    #     = numpy's np.arctan2(yc, xc) · the wrist centre lies in the same vertical plane as the tip, so x, y work directly
+    #     = numpy's np.arctan2(yc, xc) · the wrist center lies in the same plane as the tip, so x, y can be used directly
     r = np.sqrt(x * x + y * y)               # slides: r² = xc² + yc² (horizontal distance from the base axis)
     if x * x + y * y < 1e-9:
-        theta1 = theta1_prev      # slides: singular configuration — θ₁ can be anything, so keep the previous one
+        theta1 = theta1_prev      # slides: singular configuration — θ₁ can be anything, so keep the previous value
+        if flip:
+            theta1 = wrap180(theta1 + 180.0)
     else:
         theta1 = np.degrees(np.arctan2(y, x))
-        # near the base axis: if the tip is just behind the axis, atan2 jumps to ~180° (base out of limit — seen on the
-        # real arm when jogging Z− from upright) → use the slides' second solution θ₁ + 180° with negative r
-        # (lean back instead of turning the base) when it is closer to the current base angle
         flipped = wrap180(theta1 + 180.0)
-        if r < NEAR_AXIS_MM and abs(wrap180(flipped - theta1_prev)) < abs(wrap180(theta1 - theta1_prev)):
+        if flip is None:
+            # near the base axis: a tip just behind the axis makes atan2 jump to ~180° (base out of limit — seen when jogging Z− from upright)
+            # → use the slides' second solution θ₁ + 180° with negative r (lean back instead of turning the base) when it is closer to the current base angle
+            flip = r < NEAR_AXIS_MM and abs(wrap180(flipped - theta1_prev)) < abs(wrap180(theta1 - theta1_prev))
+        if flip:
             theta1, r = flipped, -r
     # kinematic decoupling (slides: oc = o − d·R·k): step back from the tip to the wrist by a4 along the tip direction φ
     rc = r - A4 * np.cos(phi_r)              # horizontal distance of the wrist
     s = z - A4 * np.sin(phi_r) - D1          # slides: s = zc − d1 (wrist height above the shoulder)
+    geo = IKGeo(None, float(theta1), float(r), float(rc), float(s), float(np.hypot(rc, s)))
 
     # slides: law of cosines  D = cos θ₃ = (r² + s² − a2² − a3²) / (2·a2·a3)
     D = (rc * rc + s * s - A2 * A2 - A3 * A3) / (2 * A2 * A3)
     if abs(D) > 1 + 1e-9:
-        dist = np.hypot(rc, s)
-        return IK(False, None, f"Out of reach: wrist is {dist:.1f} mm from the shoulder "
-                               f"but the links span {abs(A2 - A3):.1f}…{A2 + A3:.1f} mm")
+        return geo
     D = float(np.clip(D, -1.0, 1.0))         # trim rounding when the arm is exactly straight (D = ±1)
 
     # slides: θ₃ = Atan2(D, ±√(1 − D²)) → numpy: arctan2(±√(1 − D²), D)
@@ -143,8 +160,17 @@ def inverse_kinematics(x, y, z, phi=-90.0, elbow_up=True, theta1_prev=0.0):
     theta4 = phi_r - theta2 - theta3
 
     theta = [theta1, np.degrees(theta2), np.degrees(theta3), np.degrees(theta4)]
-    q = [wrap180(v) for v in theta_to_q(theta)]
-    reason = check_limits(q)
+    geo.q = [float(wrap180(v)) for v in theta_to_q(theta)]
+    return geo
+
+
+def inverse_kinematics(x, y, z, phi=-90.0, elbow_up=True, theta1_prev=0.0):
+    """tip position (x, y, z) mm + tip angle φ (degrees) → servo angles q"""
+    geo = solve_ik(x, y, z, phi, elbow_up, theta1_prev)
+    if geo.q is None:
+        return IK(False, None, f"Out of reach: wrist is {geo.dist:.1f} mm from the shoulder "
+                               f"but the links span {REACH_MIN:.1f}…{REACH_MAX:.1f} mm")
+    reason = check_limits(geo.q)
     if reason:
         return IK(False, None, reason)
-    return IK(True, [float(v) for v in q], "")
+    return IK(True, list(geo.q), "")

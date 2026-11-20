@@ -164,7 +164,10 @@ class Mover:
         i, d = self._jog
         v, a, _ = self._jog_speed()
         lo, hi = config.Q_MIN[i], config.Q_MAX[i]
-        room = (hi - self.q[i]) if self.vel[i] >= 0 else (self.q[i] - lo)
+        # distance left to the limit on the side we are heading: moving = by velocity · still = by the pressed button
+        # (was vel >= 0 → resting at the upper limit and pressing − gave room = 0, brake = 0, stuck — e.g. wrist fully forward 78.2° in Standby)
+        up = self.vel[i] > 0 or (self.vel[i] == 0 and d > 0)
+        room = (hi - self.q[i]) if up else (self.q[i] - lo)
         # braking ceiling v ≤ √(a·distance) = brake with half of a — with full a (√(2a·distance)) the ramp
         # cannot keep up and the joint hits the limit at ~14 °/s
         brake = math.sqrt(a * max(room, 0.0))
