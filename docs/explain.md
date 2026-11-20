@@ -40,6 +40,64 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 - `T⁰₄ = A₁A₂A₃A₄` → 4th column = position (x, y, z) · **φ = θ2 + θ3 + θ4** (tip angle vs horizontal — the shoulder, elbow and wrist axes are parallel, so the angles simply add)
 - The 4-row table gives exactly the same tip as the old 5-row table (α₄ = 90°, d5 = 50, θ₅ = 0) in every pose — a test checks 300 poses
 
+### 2.1 Homogeneous Transformation table (link by link)
+
+The matrix of each link (FK slides), multiplied in turn: **T⁰ᵢ = T⁰ᵢ₋₁ · Aᵢ** (code: `dh_matrix`, `forward_kinematics`)
+
+```
+       ┌ cθᵢ  −sθᵢ·cαᵢ   sθᵢ·sαᵢ   aᵢ·cθᵢ ┐
+Aᵢ  =  │ sθᵢ   cθᵢ·cαᵢ  −cθᵢ·sαᵢ   aᵢ·sθᵢ │   = Rot(z,θᵢ) · Trans(z,dᵢ) · Trans(x,aᵢ) · Rot(x,αᵢ)
+       │ 0     sαᵢ       cαᵢ       dᵢ     │
+       └ 0     0         0         1      ┘
+```
+
+| Link | θᵢ | dᵢ (mm) | aᵢ (mm) | αᵢ | What Aᵢ does |
+|---|---|---|---|---|---|
+| 1 base | θ₁ = q₁ | 96.7 | 0 | 90° | turn about the vertical axis → rise 96.7 → tip z over to horizontal (the shoulder axis) |
+| 2 shoulder | θ₂ = 90° − q₂ | 0 | 137.0 | 0 | rotate in the arm plane → reach out 137.0 |
+| 3 elbow | θ₃ = −q₃ | 0 | 98.3 | 0 | rotate in the arm plane → reach out 98.3 |
+| 4 wrist | θ₄ = −q₄ | 0 | 50.0 | 0 | rotate in the arm plane → reach out 50.0 to the tip |
+
+Substitute and multiply (links 2–4 rotate in the same plane, so their angles add):
+
+```
+      ┌ c1  0   s1   0  ┐         ┌ c2  −s2  0  a2·c2 ┐         ┌ c3  −s3  0  a3·c3 ┐         ┌ c4  −s4  0  a4·c4 ┐
+A1 =  │ s1  0  −c1   0  │   A2 =  │ s2   c2  0  a2·s2 │   A3 =  │ s3   c3  0  a3·s3 │   A4 =  │ s4   c4  0  a4·s4 │
+      │ 0   1   0    d1 │         │ 0    0   1  0     │         │ 0    0   1  0     │         │ 0    0   1  0     │
+      └ 0   0   0    1  ┘         └ 0    0   0  1     ┘         └ 0    0   0  1     ┘         └ 0    0   0  1     ┘
+
+         ┌ c1·c234  −c1·s234   s1   c1·R  ┐      R = a2·c2 + a3·c23 + a4·c234   (horizontal distance from the base axis)
+T⁰₄  =   │ s1·c234  −s1·s234  −c1   s1·R  │      Z = a2·s2 + a3·s23 + a4·s234   (height above the shoulder axis)
+         │ s234      c234      0    d1+Z  │      ci = cos θi,  c23 = cos(θ2+θ3),  c234 = cos(θ2+θ3+θ4) = cos φ
+         └ 0         0         0    1     ┘
+```
+
+**Numeric example** q = (30°, 40°, 40°, 50°) → θ = (30°, 50°, −40°, −50°) (computed by the real code):
+
+```
+A1 (θ1 = 30°)                     A2 (θ2 = 50°)                     A3 (θ3 = −40°)                    A4 (θ4 = −50°)
+┌ 0.866  0      0.500   0    ┐    ┌ 0.643 −0.766  0   88.1 ┐      ┌  0.766  0.643  0   75.3 ┐      ┌  0.643  0.766  0   32.1 ┐
+│ 0.500  0     −0.866   0    │    │ 0.766  0.643  0  104.9 │      │ −0.643  0.766  0  −63.2 │      │ −0.766  0.643  0  −38.3 │
+│ 0      1      0      96.7  │    │ 0      0      1    0   │      │  0      0      1    0   │      │  0      0      1    0   │
+└ 0      0      0       1    ┘    └ 0      0      0    1   ┘      └  0      0      0    1   ┘      └  0      0      0    1   ┘
+
+T⁰₂ = A1·A2                       T⁰₃ = T⁰₂·A3                      T⁰₄ = T⁰₃·A4
+┌ 0.557 −0.663  0.500   76.3 ┐    ┌ 0.853 −0.150  0.500  160.1 ┐    ┌  0.663  0.557  0.500  193.3 ┐
+│ 0.321 −0.383 −0.866   44.0 │    │ 0.492 −0.087 −0.866   92.4 │    │  0.383  0.321 −0.866  111.6 │
+│ 0.766  0.643  0      201.6 │    │ 0.174  0.985  0      218.7 │    │ −0.643  0.766  0      186.6 │
+└ 0      0      0        1   ┘    └ 0      0      0        1   ┘    └  0      0      0        1   ┘
+```
+
+| Point | 4th column of | x (mm) | y (mm) | z (mm) |
+|---|---|---|---|---|
+| o₁ shoulder axis | T⁰₁ | 0 | 0 | 96.7 |
+| o₂ elbow | T⁰₂ | 76.3 | 44.0 | 201.6 |
+| o₃ wrist | T⁰₃ | 160.1 | 92.4 | 218.7 |
+| **o₄ arm tip** | **T⁰₄** | **193.3** | **111.6** | **186.6** |
+
+- Check: R = √(193.3² + 111.6²) = 223.2 mm, Z = 186.6 − 96.7 = 89.9 mm · φ = 50 − 40 − 50 = **−40°** (matches the side-view figure)
+- Column 1 of T⁰₄ = the direction the tip points (x₄) · column 3 = the pitch joints' rotation axis (z₁ = z₂ = z₃, parallel) · a test checks that the T⁰₄ formula above equals the code in every pose
+
 ## 3. Inverse Kinematics: position → joint angles
 
 ![IK steps](figures/ik_steps.svg)

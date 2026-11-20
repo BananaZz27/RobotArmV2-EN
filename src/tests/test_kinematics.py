@@ -134,3 +134,26 @@ def test_4_row_dh_same_tip_as_old_5_row_dh():
         fk = forward_kinematics(q)
         assert np.allclose(T[:3, 3], [fk.x, fk.y, fk.z], atol=1e-9)
         assert np.allclose(T[:3, 2], fk.T[:3, 0], atol=1e-9)        # tip direction: old z₅ = new x₄
+
+
+def test_t04_closed_form_matches_code():
+    """the T⁰₄ formula in docs/explain.md section 2.1 = the code's A1·A2·A3·A4 product, every pose"""
+    c, s = (lambda d: np.cos(np.radians(d))), (lambda d: np.sin(np.radians(d)))
+    rng = np.random.default_rng(3)
+    for _ in range(300):
+        q = [rng.uniform(lo, hi) for lo, hi in zip(config.Q_MIN, config.Q_MAX)]
+        t1, t2, t3, t4 = q_to_theta(q)
+        t234 = t2 + t3 + t4
+        R = config.A2 * c(t2) + config.A3 * c(t2 + t3) + config.A4 * c(t234)
+        Z = config.A2 * s(t2) + config.A3 * s(t2 + t3) + config.A4 * s(t234)
+        T = np.array([[c(t1) * c(t234), -c(t1) * s(t234), s(t1), c(t1) * R],
+                      [s(t1) * c(t234), -s(t1) * s(t234), -c(t1), s(t1) * R],
+                      [s(t234), c(t234), 0, config.D1 + Z],
+                      [0, 0, 0, 1]])
+        assert np.allclose(T, forward_kinematics(q).T, atol=1e-9)
+
+
+def test_t04_example_in_docs():
+    """numeric example in docs/explain.md section 2.1: q = (30, 40, 40, 50) → tip (193.3, 111.6, 186.6), φ = −40°"""
+    f = forward_kinematics([30, 40, 40, 50])
+    assert [round(f.x, 1), round(f.y, 1), round(f.z, 1), round(f.phi, 1)] == [193.3, 111.6, 186.6, -40.0]
