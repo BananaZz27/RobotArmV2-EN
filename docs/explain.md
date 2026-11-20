@@ -107,6 +107,19 @@ T⁰₂ = A1·A2                       T⁰₃ = T⁰₂·A3                    
 - **Near the base axis** (r < 30 mm) the slides' second solution θ1 + 180° with negative r is used when it is closer to the current base angle — otherwise a tip 0.2 mm behind the axis made atan2 jump to 180° (base out of limit)
 - **φ not reachable** (position reachable, angle not) → the window finds the nearest reachable φ (1° steps) and says so in the Log
 
+**Step by step with the equations and a worked example** — target (150, 90, 120) mm, φ = −60°, elbow up (every number comes from the real `solve_ik`; regenerate with `python docs/make_ik_derivation.py`):
+
+![IK step by step with equations](figures/ik_derivation.png)
+
+```
+1) r  = √(x² + y²)                 θ₁ = atan2(y, x)                         (facing away: θ₁ + 180°, r → −r)
+2) rc = r − a₄·cos φ               s  = z − d₁ − a₄·sin φ                   L = √(rc² + s²)
+3) D  = (rc² + s² − a₂² − a₃²) / (2·a₂·a₃)    need |D| ≤ 1    θ₃ = atan2(∓√(1 − D²), D)   (− = elbow up)
+4) θ₂ = atan2(s, rc) − atan2(a₃·sin θ₃, a₂ + a₃·cos θ₃)
+5) θ₄ = φ − θ₂ − θ₃
+6) q  = [θ₁, 90° − θ₂, −θ₃, −θ₄]  → check Q_MIN … Q_MAX → check back with FK
+```
+
 ### 3.1 Why a target cannot be reached (shown in the IK tab — `ik_explain.py`, `ik_sketch.py`)
 
 ![IK reasons](figures/ik_why.png)
