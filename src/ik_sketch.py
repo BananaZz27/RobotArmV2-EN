@@ -20,7 +20,7 @@ class IKSketch(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.d = None
-        self.setMinimumHeight(260)
+        self.setMinimumHeight(180)
 
     def set_diagnosis(self, d):
         self.d = d
