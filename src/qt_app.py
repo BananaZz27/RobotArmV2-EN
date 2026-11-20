@@ -15,12 +15,13 @@ from html import escape
 
 import serial
 from PyQt6.QtCore import QLocale, Qt, QTimer
-from PyQt6.QtGui import QFont, QKeySequence, QShortcut
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
-                             QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSlider, QSplitter,
-                             QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout, QWidget)
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
+                             QLabel, QMainWindow, QMessageBox, QPlainTextEdit, QSlider, QSplitter, QTableWidget,
+                             QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout, QWidget)
 
 import config
+import theme
 from driver import Driver
 from ik_explain import TIP_MAX, diagnose, fmt_ranges
 from ik_sketch import IKSketch
@@ -32,7 +33,6 @@ from servo_calibrate import save_standby
 
 USED = range(len(config.JOINTS))     # every joint (base, shoulder, elbow, wrist)
 SLIDER_SCALE = 10      # sliders are int → ×10 for 0.1° resolution
-MONO = QFont("Consolas")
 
 
 def _spin(lo, hi, step, suffix, value=0.0, decimals=1):
@@ -94,19 +94,28 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_jog_tab(), "Jog")
         self.tabs.addTab(self._build_ik_tab(), "Inverse Kinematics")
         self.tabs.addTab(self._build_status_tab(), "Status")
+        self.tabs.setDocumentMode(True)
         self.log_view = QPlainTextEdit(readOnly=True, maximumBlockCount=500)
-        self.log_view.setMaximumHeight(130)
+        self.log_view.setObjectName("log")
+        self.log_view.setFont(theme.mono(9))
+        view, vl = theme.card("3D view", "orange = Target · translucent blue = actual")
+        vl.addWidget(self.viewer, 1)
         split = QSplitter(Qt.Orientation.Horizontal)
-        split.addWidget(self.viewer)
+        split.addWidget(view)
         split.addWidget(self.tabs)
-        split.setSizes([800, 600])
+        split.setSizes([780, 620])
+        log, ll = theme.card("Log")
+        ll.addWidget(self.log_view)
+        log.setMaximumHeight(170)
 
         central = QWidget()
         lay = QVBoxLayout(central)
-        lay.addLayout(self._build_toolbar())
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(10)
+        lay.addWidget(self._build_toolbar())
         lay.addWidget(split, stretch=1)
         lay.addWidget(self._build_fk_box())
-        lay.addWidget(self.log_view)
+        lay.addWidget(log)
         self.setCentralWidget(central)
         QShortcut(QKeySequence("Space"), self, activated=self.stop)
 
@@ -119,101 +128,132 @@ class MainWindow(QMainWindow):
 
     # ================= build the window =================
     def _build_toolbar(self):
-        self.connect_btn = QPushButton("Connect")
+        """header: name + port + connection status (left) · Standby / Torque / STOP (right)"""
+        self.connect_btn = theme.button("Connect", "primary")
         self.connect_btn.clicked.connect(self.toggle_connect)
         self.conn_label = QLabel()
-        self.torque_btn = QPushButton("Torque OFF")
-        self.torque_btn.setToolTip("Turn torque off to move the arm by hand — the GUI pose follows the real arm")
+        self.torque_btn = theme.button("Torque OFF", tip="Turn torque off to move the arm by hand — the GUI pose follows the real arm")
         self.torque_btn.clicked.connect(lambda: self.set_torque(not self.torque_on))
-        stop = QPushButton("■ STOP  (Space)")
-        stop.setStyleSheet("background:#e63946; color:white; font-weight:bold; padding:6px 18px")
+        stop = theme.button("■  STOP  (Space)", "danger")
         stop.clicked.connect(self.stop)
-        bar = QHBoxLayout()
-        for w in (QLabel(f"Port {config.DIRECT_PORT}"), self.connect_btn, self.conn_label):
-            bar.addWidget(w)
-        bar.addStretch(1)
-        standby = QPushButton("⌂ Standby")
-        standby.setToolTip(f"Go to the Standby pose slowly ({config.STANDBY_V:.0f} °/s) — set the pose with 📌 in the Joint tab")
+        standby = theme.button("⌂ Standby", tip=f"Go to the Standby pose slowly ({config.STANDBY_V:.0f} °/s) — "
+                                                "set the pose with the 📌 button in the Joint tab")
         standby.clicked.connect(self.go_standby)
-        bar.addWidget(standby)
-        bar.addWidget(self.torque_btn)
-        bar.addWidget(stop)
-        return bar
+
+        title = QVBoxLayout()
+        title.setSpacing(0)
+        title.addWidget(theme.label("RobotArm 4DOF", "app"))
+        title.addWidget(theme.label(f"Port {config.DIRECT_PORT} · USB adapter → Feetech SCS15", "hint"))
+        frame = QFrame()
+        frame.setObjectName("header")
+        bar = QHBoxLayout(frame)
+        bar.setContentsMargins(16, 10, 12, 10)
+        bar.setSpacing(10)
+        bar.addLayout(title)
+        bar.addSpacing(18)
+        bar.addWidget(self.connect_btn)
+        bar.addWidget(self.conn_label)
+        bar.addStretch(1)
+        for w in (standby, self.torque_btn, stop):
+            bar.addWidget(w)
+        return frame
+
+    @staticmethod
+    def _joint_name(i):
+        """joint name + its range (small, under the name)"""
+        box = QVBoxLayout()
+        box.setSpacing(0)
+        box.addWidget(theme.label(config.JOINTS[i]["name"], "name"))
+        box.addWidget(theme.label(f"{config.Q_MIN[i]:.1f} … {config.Q_MAX[i]:.1f}°", "range"))
+        return box
+
+    @staticmethod
+    def _page(*widgets):
+        """a tab page: cards stacked downwards"""
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 10, 0, 0)
+        lay.setSpacing(10)
+        for x in widgets:
+            lay.addWidget(x) if isinstance(x, QWidget) else lay.addLayout(x)
+        lay.addStretch(1)
+        return w
 
     def _build_joint_tab(self):
+        frame, lay = theme.card("Target pose per joint", "drag a slider / type a number → the arm follows immediately")
         grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(10)
         for col, text in enumerate(("Joint", "", "Target", "Actual")):
-            grid.addWidget(QLabel(f"<b>{text}</b>"), 0, col)
+            grid.addWidget(theme.label(text, "hint"), 0, col)
         self.rows = {}
         for r, i in enumerate(USED, start=1):
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setRange(int(config.Q_MIN[i] * SLIDER_SCALE), int(config.Q_MAX[i] * SLIDER_SCALE))
             spin = _spin(config.Q_MIN[i], config.Q_MAX[i], 1.0, " °")
-            spin.setKeyboardTracking(False)             # apply on Enter, not on every keystroke
-            actual = QLabel("—")
-            actual.setMinimumWidth(60)
-            actual.setStyleSheet("color:#3a86ff")
-            for col, w in enumerate((QLabel(config.JOINTS[i]["name"]), slider, spin, actual)):
+            spin.setKeyboardTracking(False)             # applied after typing + Enter
+            spin.setMinimumWidth(92)
+            actual = theme.label("—", "actual")
+            actual.setFont(theme.mono(10, bold=True))
+            actual.setMinimumWidth(78)
+            actual.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            grid.addLayout(self._joint_name(i), r, 0)
+            for col, w in enumerate((slider, spin, actual), start=1):
                 grid.addWidget(w, r, col)
             slider.valueChanged.connect(lambda v, i=i: self.on_joint(i, v / SLIDER_SCALE))
             spin.valueChanged.connect(lambda v, i=i: self.on_joint(i, v))
             self.rows[i] = (slider, spin, actual)
         grid.setColumnStretch(1, 1)
+        lay.addLayout(grid)
 
-        zero = QPushButton("Zero (straight up)")
+        zero = theme.button("Zero (straight up)")
         zero.clicked.connect(lambda: (self.set_target([0.0] * len(config.JOINTS)), self.send()))
-        pin = QPushButton("📌 Set this pose as Standby")
-        pin.setToolTip("Save the current Target pose to config.py — the next Connect moves the arm here")
+        pin = theme.button("📌 Set this pose as Standby", "ghost",
+                           "Save the current Target pose into config.py — the next Connect moves the arm here by itself")
         pin.clicked.connect(self.set_standby_here)
         bar = QHBoxLayout()
         bar.addWidget(pin)
         bar.addStretch(1)
         bar.addWidget(zero)
-        hint = QLabel("Drag a slider / type a number → the arm follows immediately · orange in 3D = Target, "
-                      "translucent blue = actual pose")
-        hint.setStyleSheet("color:#666")
-        w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.addLayout(grid)
+        lay.addSpacing(4)
         lay.addLayout(bar)
-        lay.addWidget(hint)
-        lay.addStretch(1)
-        return w
+        lay.addWidget(theme.label("In 3D: orange = Target · translucent blue = actual pose", "hint"))
+        return self._page(frame)
 
     def _build_jog_tab(self):
-        grid = QGridLayout()
-        grid.addWidget(QLabel("<b>Joints</b> (+ = lean forward / base turns left)"), 0, 0, 1, 3)
         self.jog_buttons = {}
 
-        def hold(text, row, col, fn):
-            b = QPushButton(text)
+        def hold(grid, text, row, col, fn):
+            b = theme.button(text, "jog")
             b.setAutoRepeat(False)
-            b.pressed.connect(lambda: self.jog(fn))          # hold = accelerate
+            b.pressed.connect(lambda: self.jog(fn))          # hold = speed up
             b.released.connect(self.jog_release)             # release = ease to a stop
             grid.addWidget(b, row, col)
             return b
 
-        for r, i in enumerate(USED, start=1):
-            grid.addWidget(QLabel(config.JOINTS[i]["name"]), r, 0)
+        joints, jl = theme.card("Joints", "+ = lean forward / base turns left")
+        grid = QGridLayout()
+        grid.setColumnStretch(0, 1)
+        for r, i in enumerate(USED):
+            grid.addLayout(self._joint_name(i), r, 0)
             for col, d in ((1, -1), (2, +1)):
-                self.jog_buttons[(i, d)] = hold("−" if d < 0 else "+", r, col, lambda m, i=i, d=d: m.jog_joint(i, d))
-        base = len(USED) + 1
-        grid.addWidget(QLabel("<b>Tip</b> (straight line, φ kept)"), base, 0, 1, 3)
+                self.jog_buttons[(i, d)] = hold(grid, "−" if d < 0 else "+", r, col,
+                                                lambda m, i=i, d=d: m.jog_joint(i, d))
+        jl.addLayout(grid)
+
+        tip, tl = theme.card("Tip", "straight line, φ kept")
+        grid = QGridLayout()
+        grid.setColumnStretch(0, 1)
         for k, axis in enumerate("XYZ"):
-            grid.addWidget(QLabel(axis), base + 1 + k, 0)
+            grid.addWidget(theme.label(f"{axis}  (mm)", "name"), k, 0)
             for col, d in ((1, -1), (2, +1)):
-                self.jog_buttons[(axis, d)] = hold(f"{axis}{'−' if d < 0 else '+'}", base + 1 + k, col,
+                self.jog_buttons[(axis, d)] = hold(grid, f"{axis}{'−' if d < 0 else '+'}", k, col,
                                                    lambda m, k=k, d=d: m.jog_xyz(k, d))
-        hint = QLabel("Hold = the arm keeps moving · release = smooth stop\n"
-                      "Tip jog stops by itself before a singularity (tip above the base axis / arm fully stretched)\n"
-                      "— the |det J| evidence is in the box right of Forward Kinematics · moving away from a singularity is always allowed")
-        hint.setStyleSheet("color:#666")
-        w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.addLayout(grid)
-        lay.addWidget(hint)
-        lay.addStretch(1)
-        return w
+        tl.addLayout(grid)
+        hint = theme.label("Hold = the arm keeps moving · release = smooth stop\n"
+                           "Tip jog stops by itself before a singularity (tip above the base axis / arm fully stretched)\n"
+                           "— the |det J| evidence is in the Singularity card below · moving away is always allowed", "hint")
+        return self._page(joints, tip, hint)
 
     def jog(self, fn):
         if self._ready(self.driver.mover.q):
@@ -228,28 +268,38 @@ class MainWindow(QMainWindow):
         self.ik_y = _spin(-reach, reach, 5, " mm", 10)
         self.ik_z = _spin(-reach / 2, reach, 5, " mm", 350)
         self.ik_phi = _spin(-180, 180, 5, " °", 40)
-        form = QFormLayout()
-        for name, w in (("X", self.ik_x), ("Y", self.ik_y), ("Z", self.ik_z), ("φ (tip angle)", self.ik_phi)):
-            form.addRow(name, w)
+        target, tl = theme.card("Tip target", "φ: 0° = straight ahead · −90° = down · +90° = up")
+        form = QGridLayout()
+        form.setHorizontalSpacing(10)
+        for k, (name, w) in enumerate((("X", self.ik_x), ("Y", self.ik_y), ("Z", self.ik_z),
+                                        ("φ tip angle", self.ik_phi))):
+            form.addWidget(theme.label(name, "name"), k // 2, (k % 2) * 2)
+            form.addWidget(w, k // 2, (k % 2) * 2 + 1)
+        form.setColumnStretch(1, 1)
+        form.setColumnStretch(3, 1)
+        tl.addLayout(form)
         btns = QHBoxLayout()
-        for text, fn in (("⟲ Copy current pose", self.ik_copy), ("👁 Preview (no send)", lambda: self.ik_solve(False)),
-                         ("▶ Go (send to arm)", lambda: self.ik_solve(True))):
-            b = QPushButton(text)
+        for text, kind, fn in (("Copy current pose", "ghost", self.ik_copy),
+                               ("👁 Preview (no send)", None, lambda: self.ik_solve(False)),
+                               ("▶ Go (send to arm)", "primary", lambda: self.ik_solve(True))):
+            b = theme.button(text, kind)
             b.clicked.connect(fn)
             btns.addWidget(b)
-        self.ik_result = QTextEdit(readOnly=True)
+        tl.addLayout(btns)
+        tl.addWidget(theme.label("A 4-joint arm can only control φ (yaw is set by the X, Y position itself)", "hint"))
+
         self.ik_sketch = IKSketch()                  # side view: why reachable or not
-        help_ = QLabel("φ: 0° = tip points straight ahead, −90° = points down, +90° = points up\n"
-                       "A 4-joint arm can only control φ (yaw is set by the X, Y position itself)")
-        help_.setStyleSheet("color:#666")
-        w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.addLayout(form)
-        lay.addLayout(btns)
-        lay.addWidget(help_)
-        lay.addWidget(self.ik_sketch, 1)
-        lay.addWidget(QLabel("<b>IK result</b>"))
-        lay.addWidget(self.ik_result)
+        sketch, sl = theme.card("Reachable? — side view")
+        sl.addWidget(self.ik_sketch, 1)
+        self.ik_result = QTextEdit(readOnly=True)
+        result, rl = theme.card("IK result")
+        rl.addWidget(self.ik_result, 1)
+        split = QSplitter(Qt.Orientation.Vertical)
+        split.addWidget(sketch)
+        split.addWidget(result)
+        split.setSizes([300, 330])
+        w = self._page(target, split)
+        w.layout().takeAt(w.layout().count() - 1)    # no trailing stretch: the sketch + result fill the page
         return w
 
     def _build_status_tab(self):
@@ -258,57 +308,72 @@ class MainWindow(QMainWindow):
         self.status_table.setHorizontalHeaderLabels(cols)
         self.status_table.verticalHeader().setVisible(False)
         self.status_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.status_table.setAlternatingRowColors(True)
+        self.status_table.setShowGrid(False)
+        self.status_table.setFont(theme.mono(10))
+        self.status_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         for r, i in enumerate(USED):
+            self.status_table.setRowHeight(r, 32)
             self.status_table.setItem(r, 0, QTableWidgetItem(config.JOINTS[i]["name"]))
-        self.summary = QLabel()
-        note = QLabel("Error = Target − actual pose · after arriving the program corrects sag automatically (≤ ±5°)")
-        note.setStyleSheet("color:#666")
+        self.status_table.setFixedHeight(32 * len(USED) + 36)
+        self.summary = theme.label("", "title")
         self.correct_box = QCheckBox("Correct sag after arriving")
         self.correct_box.setChecked(True)
         self.correct_box.toggled.connect(lambda on: setattr(self.driver, "correct", on))
-        box = QGroupBox("Servo")
-        bl = QVBoxLayout(box)
-        for x in (self.summary, self.status_table, note, self.correct_box):
+        box, bl = theme.card("Servo")
+        for x in (self.summary, self.status_table, self.correct_box,
+                  theme.label("Error = Target − actual pose · after arriving the program corrects sag automatically (≤ ±5°)", "hint")):
             bl.addWidget(x)
-        w = QWidget()
-        QVBoxLayout(w).addWidget(box)
-        return w
+        return self._page(box)
 
     def _build_fk_box(self):
-        box = QGroupBox("Forward Kinematics (Target pose)")
+        """bottom row: tip position (FK) · matrix T⁰₄ · singularity check — of the Target pose"""
+        pos, pl = theme.card("Tip (FK of the Target pose)")
         grid = QGridLayout()
+        grid.setHorizontalSpacing(18)
         self.fk_values = {}
         for k, (name, unit) in enumerate([("X", "mm"), ("Y", "mm"), ("Z", "mm"), ("φ", "°"), ("Yaw", "°")]):
-            lbl = QLabel("0.0")
-            lbl.setFont(MONO)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            lbl.setMinimumWidth(70)
-            grid.addWidget(QLabel(name), k % 3, (k // 3) * 3)
-            grid.addWidget(lbl, k % 3, (k // 3) * 3 + 1)
-            grid.addWidget(QLabel(unit), k % 3, (k // 3) * 3 + 2)
-            self.fk_values[name] = lbl
+            val = theme.label("0.0", "tile-value")
+            val.setFont(theme.mono(15, bold=True))
+            val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            val.setMinimumWidth(84)
+            grid.addWidget(theme.label(f"{name}  ({unit})", "tile-name"), 0, k, Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(val, 1, k)
+            self.fk_values[name] = val
+        pl.addLayout(grid)
+        pl.addStretch(1)
+
+        mat, ml = theme.card("T⁰₄", "tip pose relative to the base")
         self.fk_table = QTableWidget(4, 4)
-        self.fk_table.setFont(MONO)
+        self.fk_table.setFont(theme.mono(10))
         self.fk_table.horizontalHeader().setVisible(False)
         self.fk_table.verticalHeader().setVisible(False)
         self.fk_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.fk_table.setFixedSize(4 * 72 + 4, 4 * 24 + 4)
+        self.fk_table.setShowGrid(False)
+        self.fk_table.setFixedSize(4 * 70 + 4, 4 * 23 + 4)
+        self.fk_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.fk_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         for c in range(4):
-            self.fk_table.setColumnWidth(c, 72)
-            self.fk_table.setRowHeight(c, 24)
-        lay = QHBoxLayout(box)
-        lay.addLayout(grid)
-        lay.addSpacing(12)
-        lay.addWidget(QLabel("T⁰₄ ="))
-        lay.addWidget(self.fk_table)
-        lay.addSpacing(12)
+            self.fk_table.setColumnWidth(c, 70)
+            self.fk_table.setRowHeight(c, 23)
+        ml.addWidget(self.fk_table)
+
+        sing, sl = theme.card("Singularity")
         self.sing_label = QLabel()                    # singularity check of the Target pose + evidence (singularity.py)
-        self.sing_label.setFont(MONO)
+        self.sing_label.setFont(theme.mono(9))
         self.sing_label.setToolTip("|det J| = r·a2·a3·|sin θ3| — computed two ways (numerical/formula), they must match\n"
                                    "= 0 when the tip is on the base axis (r = 0) or the arm is fully stretched/folded (θ3 = 0°/180°)")
-        lay.addWidget(self.sing_label)
-        lay.addStretch(1)
-        return box
+        sl.addWidget(self.sing_label)
+        sl.addStretch(1)
+
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        lay.addWidget(pos, 3)
+        lay.addWidget(mat, 0)
+        lay.addWidget(sing, 2)
+        return w
 
     # ================= Target pose =================
     def set_target(self, q):
@@ -321,7 +386,7 @@ class MainWindow(QMainWindow):
         fk = forward_kinematics(self.q_target)
         yaw = math.degrees(math.atan2(fk.y, fk.x)) if math.hypot(fk.x, fk.y) > 1e-6 else self.q_target[0]
         for name, v in (("X", fk.x), ("Y", fk.y), ("Z", fk.z), ("φ", fk.phi), ("Yaw", yaw)):
-            self.fk_values[name].setText(f"{v:8.1f}")
+            self.fk_values[name].setText(f"{v:.1f}")
         for r in range(4):
             for c in range(4):
                 item = QTableWidgetItem(f"{fk.T[r, c]:.1f}" if c == 3 else f"{fk.T[r, c]:.3f}")
@@ -329,7 +394,7 @@ class MainWindow(QMainWindow):
                 self.fk_table.setItem(r, c, item)
         warn = bool(analyze(self.q_target)["warnings"])
         self.sing_label.setText(report(self.q_target))
-        self.sing_label.setStyleSheet("color:#e63946; font-weight:bold" if warn else "color:#2a9d8f")
+        self.sing_label.setStyleSheet("color:#e63946; font-weight:bold" if warn else f"color:{theme.OK}")
         self.viewer.show_target(self.q_target)
 
     def on_joint(self, i, deg):
@@ -485,7 +550,7 @@ class MainWindow(QMainWindow):
     def _label(self, text, color, tip=""):
         self.conn_label.setText(text)
         self.conn_label.setToolTip(tip)
-        self.conn_label.setStyleSheet(f"color:{color}; font-weight:bold")
+        self.conn_label.setStyleSheet(theme.pill(color))
 
     # ================= refresh every 50 ms =================
     def poll(self):
@@ -541,6 +606,7 @@ def main():
     # On a Windows machine with a Thai region format, Qt shows Thai digits in spin boxes → force Western digits
     QLocale.setDefault(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
     app = QApplication(sys.argv)
+    theme.apply(app)
     w = MainWindow()
     w.show()
     QTimer.singleShot(300, w.startup)                # wait for the window (STOP visible), then connect + go to Standby
