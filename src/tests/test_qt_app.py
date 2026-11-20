@@ -31,8 +31,8 @@ class FakeViewer(QWidget):
 
 
 @pytest.fixture
-def win():
-    w = MainWindow(viewer=FakeViewer())
+def win(tmp_path):
+    w = MainWindow(viewer=FakeViewer(), auto_file=tmp_path / "auto_points.json")   # never touches the real point file
     w.timer.stop()
     w.driver.close()                       # the test calls tick() itself
     yield w
@@ -273,3 +273,81 @@ def test_ik_unreachable_shows_reason_and_sketch(win):
     assert win.ik_sketch.d is not None and win.ik_sketch.d.q is None
     assert not win.driver.mover.busy
     win.ik_sketch.grab()                              # draws without error
+
+
+# ---------- Auto tab: A ⇄ B loop ----------
+def _run_auto(w, seconds):
+    """run the driver + the Auto loop together on simulated time"""
+    t = time.monotonic()
+    for _ in range(int(seconds / DT)):
+        t += DT
+        w.driver.tick(now=t)
+        w._auto_tick(t)
+
+
+def _teach(w, qa, qb):
+    w.set_target(qa)
+    w.auto_record(0)
+    w.set_target(qb)
+    w.auto_record(1)
+
+
+def test_auto_loop_runs_cycles_and_stops_at_a(win):
+    qa, qb = [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0]
+    _teach(win, qa, qb)
+    win.auto_speed.setValue(150)
+    win.auto_dwell.setValue(0.1)
+    win.auto_cycles.setValue(2)
+    win.auto_start()
+    assert win.auto.running
+    _run_auto(win, 8)
+    assert win.auto.phase == "done" and win.auto.done == 2
+    assert win.link.q_actual == pytest.approx(qa, abs=0.1)        # ends at A
+    assert win.auto.last_cycle_s > 0 and "finished 2 cycles" in win.log_view.toPlainText()
+    assert win.auto_start_btn.isEnabled()
+
+
+def test_auto_points_saved_and_loaded(win, tmp_path):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    w2 = MainWindow(viewer=FakeViewer(), auto_file=win.auto_file)
+    try:
+        assert w2.auto.points == win.auto.points and "q" in w2.auto_labels[1].text()
+    finally:
+        w2.timer.stop()
+        w2.close()
+
+
+def test_auto_needs_points(win):
+    win.auto_start()
+    assert not win.auto.running and "Save points A and B" in win.log_view.toPlainText()
+
+
+@pytest.mark.parametrize("action", ["stop", "jog", "torque"])
+def test_auto_stops_when_user_takes_over(win, action):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.auto_start()
+    _run_auto(win, 0.3)
+    {"stop": win.stop, "jog": lambda: win.jog(lambda m: m.jog_joint(0, 1)),
+     "torque": lambda: win.set_torque(False)}[action]()
+    assert not win.auto.running and win.auto.phase == "stopped"
+    _run_auto(win, 3)
+    assert not win.auto.running                                     # does not restart by itself
+
+
+def test_auto_stops_when_arm_goes_offline(win):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.auto_start()
+    _run_auto(win, 0.3)
+    win.link.online = lambda: False                                # servos go silent mid-way → the driver halts the arm
+    _run_auto(win, 1)
+    assert win.auto.phase == "stopped" and "before reaching point" in win.auto.reason
+
+
+def test_auto_finish_cycle_button(win):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.auto_dwell.setValue(0)
+    win.auto_start()
+    _run_auto(win, 0.2)
+    win.auto_finish_cycle()                                        # unlimited → finish this cycle, then stop
+    _run_auto(win, 8)
+    assert win.auto.phase == "done" and win.auto.done == 1

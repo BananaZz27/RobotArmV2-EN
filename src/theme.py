@@ -56,6 +56,7 @@ QPushButton[kind="primary"] {{ background:{ACCENT}; color:{ON_ACCENT}; border:1p
 QPushButton[kind="primary"]:hover {{ background:{QColor(ACCENT).lighter(112).name()}; }}
 QPushButton[kind="danger"] {{ background:{BAD}; color:white; border:1px solid {BAD}; font-weight:700; padding:7px 18px; }}
 QPushButton[kind="danger"]:hover {{ background:{QColor(BAD).darker(112).name()}; }}
+QPushButton:disabled, QPushButton[kind="primary"]:disabled {{ background:{RAISED}; color:{MUTED}; border:1px solid {LINE}; }}
 QPushButton[kind="ghost"] {{ background:transparent; border:1px dashed {LINE}; color:{MUTED}; }}
 QPushButton[kind="ghost"]:hover {{ color:{TEXT}; border-color:{MUTED}; }}
 QPushButton[kind="jog"] {{ font-size:12pt; font-weight:700; min-width:56px; min-height:30px; padding:2px; }}

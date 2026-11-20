@@ -16,13 +16,14 @@ from html import escape
 import serial
 from PyQt6.QtCore import QLocale, Qt, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QFrame, QSpinBox, QGridLayout, QHBoxLayout, QHeaderView,
                              QLabel, QMainWindow, QMessageBox, QPlainTextEdit, QScrollArea, QSlider, QSplitter,
                              QTableWidget,
                              QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout, QWidget)
 
 import config
 import theme
+from auto_cycle import POINTS_FILE, AutoCycle, load_points, save_points
 from driver import Driver
 from ik_explain import TIP_MAX, diagnose, fmt_ranges
 from ik_sketch import IKSketch
@@ -76,10 +77,11 @@ def _set_quiet(widget, value):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, link=None, connect_fn=None, viewer=None, save_standby_fn=save_standby):
+    def __init__(self, link=None, connect_fn=None, viewer=None, save_standby_fn=save_standby, auto_file=POINTS_FILE):
         super().__init__()
         self.connect_fn = connect_fn or (lambda: DirectLink(config.DIRECT_PORT))
         self.save_standby = save_standby_fn          # tests pass a fake so config.py is not written
+        self.auto_file = auto_file                   # A/B point file of the Auto tab (tests use a temp file)
         self.link, self.driver = None, None
         self.q_target = [0.0] * len(config.JOINTS)
         self.torque_on = True
@@ -94,6 +96,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_joint_tab(), "Joint")
         self.tabs.addTab(self._build_jog_tab(), "Jog")
         self.tabs.addTab(self._build_ik_tab(), "Inverse Kinematics")
+        self.tabs.addTab(self._build_auto_tab(), "Auto")
         self.tabs.addTab(self._build_status_tab(), "Status")
         self.tabs.setDocumentMode(True)
         self.log_view = QPlainTextEdit(readOnly=True, maximumBlockCount=500)
@@ -279,6 +282,7 @@ class MainWindow(QMainWindow):
         return self._page(joints, tip, hint)
 
     def jog(self, fn):
+        self._cancel_auto("Jog pressed")
         if self._ready(self.driver.mover.q):
             self.driver.do(fn)
 
@@ -421,6 +425,7 @@ class MainWindow(QMainWindow):
         self.viewer.show_target(self.q_target)
 
     def on_joint(self, i, deg):
+        self._cancel_auto("slider moved")
         q = list(self.q_target)
         q[i] = deg
         self.set_target(q)
@@ -443,17 +448,20 @@ class MainWindow(QMainWindow):
         return not why
 
     def send(self):
+        self._cancel_auto("new pose sent by hand")
         if self._ready():
             target = list(self.q_target)
             self.driver.do(lambda m: m.goto_q(target))
             self.log("▶ Send: " + "  ".join(f"{target[i]:.1f}" for i in USED))
 
     def stop(self):
+        self._cancel_auto("STOP pressed")
         self.driver.emergency_stop()
         self.set_target(self.driver.mover.q)
         self.log("■ STOP — the arm holds at its actual position")
 
     def set_torque(self, on):
+        self._cancel_auto("Torque changed")
         self.driver.emergency_stop()
         self.link.torque(on)
         self.torque_on = on
@@ -490,8 +498,168 @@ class MainWindow(QMainWindow):
         if send:
             self.send()
 
+    # ================= Auto: A ⇄ B loop =================
+    def _build_auto_tab(self):
+        """Auto tab: teach points A/B → set speed/wait/cycles → Start (like a factory machine)"""
+        self.auto = AutoCycle(load_points(self.auto_file))
+        self._auto_seen = "idle"
+
+        pts, pl = theme.card("Work points", "set the pose with Joint / Jog / IK (or Torque OFF and move the arm by hand) → Save")
+        grid = QGridLayout()
+        grid.setColumnStretch(1, 1)
+        self.auto_labels = []
+        for k in range(2):
+            letter = theme.label(AutoCycle.name(k), "tile-value")
+            info = theme.label("", "hint")
+            info.setFont(theme.mono(9))
+            rec = theme.button("📍 Save this pose", tip=f"use the current Target pose as point {AutoCycle.name(k)}")
+            go = theme.button("Go here", "ghost")
+            rec.clicked.connect(lambda _=False, k=k: self.auto_record(k))
+            go.clicked.connect(lambda _=False, k=k: self.auto_goto(k))
+            for col, w in enumerate((letter, info, rec, go)):
+                grid.addWidget(w, k, col)
+            self.auto_labels.append(info)
+        pl.addLayout(grid)
+
+        setting, sl = theme.card("Settings")
+        form = QGridLayout()
+        form.setColumnStretch(1, 1)
+        form.setColumnStretch(3, 1)
+        self.auto_speed = _spin(10, config.V_JOINT, 10, " °/s", 60, decimals=0)
+        self.auto_dwell = _spin(0, 30, 0.1, " s", 0.5)
+        self.auto_cycles = QSpinBox(minimum=0, maximum=100000, value=0)
+        self.auto_cycles.setSpecialValueText("∞ unlimited")
+        for k, (name, w) in enumerate((("Speed", self.auto_speed), ("Wait at point", self.auto_dwell),
+                                        ("Cycles", self.auto_cycles))):
+            form.addWidget(theme.label(name, "name"), k // 2, (k % 2) * 2)
+            form.addWidget(w, k // 2, (k % 2) * 2 + 1)
+        sl.addLayout(form)
+        sl.addWidget(theme.label("Speed = the joint that turns most never exceeds it · every move is smooth (min-jerk)", "hint"))
+
+        run, rl = theme.card("Control")
+        btns = QHBoxLayout()
+        self.auto_start_btn = theme.button("▶ Start", "primary")
+        self.auto_start_btn.clicked.connect(self.auto_start)
+        finish = theme.button("⏹ Stop after this cycle", tip="keep going until back at A, then stop (not mid-way)")
+        finish.clicked.connect(self.auto_finish_cycle)
+        stop = theme.button("■ Stop")
+        stop.setToolTip("stop right here, right now (same as the STOP button)")
+        stop.clicked.connect(self.stop)
+        for b in (self.auto_start_btn, finish, stop):
+            btns.addWidget(b)
+        rl.addLayout(btns)
+        self.auto_status = theme.label("", "name")
+        rl.addWidget(self.auto_status)
+        tiles = QGridLayout()
+        self.auto_tiles = {}
+        for k, name in enumerate(("Cycles done", "Time/cycle (s)", "Cycles/min")):
+            val = theme.label("—", "tile-value")
+            tiles.addWidget(theme.label(name, "tile-name"), 0, k)
+            tiles.addWidget(val, 1, k)
+            self.auto_tiles[name] = val
+        rl.addLayout(tiles)
+        rl.addWidget(theme.label("Stops by itself on: STOP / Space, Jog, slider, a new pose, Torque OFF, "
+                                 "the arm stopping before a point (voltage drop / servo silent)", "hint"))
+        self._auto_show_points()
+        self._auto_show_status(0.0)
+        return self._page(pts, setting, run)
+
+    def _auto_show_points(self):
+        for k, info in enumerate(self.auto_labels):
+            q = self.auto.points[k]
+            if q is None:
+                info.setText("not saved yet")
+                continue
+            fk = forward_kinematics(q)
+            info.setText("q " + " ".join(f"{v:6.1f}" for v in q) + f"\n(x, y, z) = ({fk.x:.0f}, {fk.y:.0f}, {fk.z:.0f}) mm")
+
+    def _auto_show_status(self, now):
+        a = self.auto
+        self.auto_status.setText(a.status(now))
+        self.auto_tiles["Cycles done"].setText(f"{a.done}" + (f" / {a.cycles}" if a.cycles else ""))
+        t = a.last_cycle_s
+        self.auto_tiles["Time/cycle (s)"].setText("—" if t is None else f"{t:.1f}")
+        self.auto_tiles["Cycles/min"].setText("—" if not t else f"{60 / t:.1f}")
+        self.auto_start_btn.setEnabled(not a.running)
+
+    def auto_record(self, k):
+        """save the current Target pose as point A/B (stored in a file for next time)"""
+        q = [round(v, 1) for v in self.q_target]
+        why = check_limits(q)
+        if why:
+            self.log(f"❌ Point {AutoCycle.name(k)} not saved: {why}")
+            return
+        self.auto.points[k] = q
+        try:
+            save_points(self.auto.points, self.auto_file)
+        except OSError as e:
+            self.log(f"⚠ Could not write the file (kept until the program closes): {e}")
+        self._auto_show_points()
+        self.log(f"📍 Point {AutoCycle.name(k)} = " + "  ".join(f"{v:.1f}" for v in q))
+
+    def auto_goto(self, k):
+        q = self.auto.points[k]
+        if q is None:
+            self.log(f"❌ Point {AutoCycle.name(k)} is not saved yet")
+            return
+        self.set_target(q)
+        self.send()
+
+    def auto_start(self):
+        if None in self.auto.points:
+            self.log("❌ Save points A and B before pressing Start")
+            return
+        if not self.link.simulated and QMessageBox.question(
+                self, "Start looping on the real arm",
+                "The real arm will run A ⇄ B by itself, over and over\nClear the space around it and be ready to press STOP / Space\n\nStart now?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        self.auto.cycles = self.auto_cycles.value()
+        first = self.auto.start(time.monotonic())
+        self._auto_seen = "move"
+        self.log(f"▶ Auto started: A ⇄ B · {self.auto_speed.value():.0f} °/s · wait {self.auto_dwell.value():.1f} s · "
+                 + (f"{self.auto.cycles} cycles" if self.auto.cycles else "unlimited cycles") + " — press STOP / Space to stop")
+        self._auto_send(first)
+
+    def auto_finish_cycle(self):
+        if self.auto.running:
+            self.auto.cycles = self.auto.done + 1
+            self.log("⏹ Will stop when back at A at the end of this cycle")
+
+    def _auto_send(self, q):
+        if not self._ready(q):                       # limit / torque / offline / low voltage → stop the loop (reason in the log)
+            self.auto.stop("could not command the arm (see Log)")
+            return
+        self.set_target(q)
+        v = self.auto_speed.value()
+        self.driver.do(lambda m: m.goto_q(q, v=v))
+
+    def _auto_tick(self, now):
+        """called every 50 ms: arm arrived → wait → command the next point"""
+        a = self.auto
+        if a.running:
+            a.dwell = self.auto_dwell.value()
+            m = self.driver.mover
+            nxt = a.update(now, m.busy, list(m.q))
+            if nxt is not None:
+                self._auto_send(nxt)
+        if a.phase != self._auto_seen:
+            self._auto_seen = a.phase
+            if a.phase == "done":
+                self.log(f"✅ Auto finished {a.done} cycles")
+            elif a.phase == "stopped":
+                self.log(f"■ Auto stopped: {a.reason} ({a.done} cycles done)")
+        self._auto_show_status(now)
+
+    def _cancel_auto(self, why):
+        """the user commands the arm → stop the loop first (so it does not override)"""
+        if getattr(self, "auto", None) is not None and self.auto.running:
+            self.auto.stop(why)
+            self._auto_tick(time.monotonic())
+
     # ================= connection =================
     def _use_link(self, link):
+        self._cancel_auto("connection changed")
         if self.driver:
             self.driver.close()
         if self.link:
@@ -542,6 +710,7 @@ class MainWindow(QMainWindow):
     # ================= Standby pose =================
     def go_standby(self):
         """move to the Standby pose at STANDBY_V (slow) — not if voltage is low / a servo is missing / torque is off"""
+        self._cancel_auto("going to Standby")
         q = config.STANDBY_Q
         act = self.link.q_actual
         if act is None or any(math.isnan(act[i]) for i in USED):
@@ -578,6 +747,7 @@ class MainWindow(QMainWindow):
     # ================= refresh every 50 ms =================
     def poll(self):
         link, m = self.link, self.driver.mover
+        self._auto_tick(time.monotonic())
         if self.driver.message:
             self.log(self.driver.message)
             self.driver.message = ""
