@@ -299,7 +299,7 @@ def test_auto_loop_runs_cycles_and_stops_at_a(win):
     qa, qb = [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0]
     _teach(win, qa, qb)
     win.auto_speed.setValue(150)
-    win.auto_dwell.setValue(0.1)
+    [w.setValue(0.1) for w in win.auto_dwell_spins]
     win.auto_cycles.setValue(2)
     win.auto_start()
     assert win.auto.running
@@ -348,7 +348,7 @@ def test_auto_stops_when_arm_goes_offline(win):
 
 def test_auto_finish_cycle_button(win):
     _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
-    win.auto_dwell.setValue(0)
+    [w.setValue(0) for w in win.auto_dwell_spins]
     win.auto_start()
     _run_auto(win, 0.2)
     win.auto_finish_cycle()                                        # unlimited → finish this cycle, then stop
@@ -365,7 +365,7 @@ def test_auto_three_points_line_mode_and_3d(win):
     assert [n for n, _ in win.viewer.points] == ["A", "B", "C"]        # 3D view shows A B C
     win.auto_mode.setCurrentIndex(1)                                   # straight line
     win.auto_vcart.setValue(300)
-    win.auto_dwell.setValue(0)
+    [w.setValue(0) for w in win.auto_dwell_spins]
     win.auto_cycles.setValue(1)
     win.auto_start()
     _run_auto(win, 12)
@@ -384,3 +384,32 @@ def test_auto_remove_point_and_edit_locked_while_running(win):
     win.auto_start()
     win.auto_add()
     assert len(win.auto.points) == 2 and "Cannot edit the sequence" in win.log_view.toPlainText()
+
+
+def test_auto_dwell_per_point_saved_and_used(win):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.auto_dwell_spins[0].setValue(0)
+    win.auto_dwell_spins[1].setValue(3)
+    assert win.auto.dwells == [0.0, 3.0]
+    win.auto_start()
+    _run_auto(win, 4)                                  # reached B, now waiting 3 s
+    assert win.auto.phase == "dwell" and win.auto.index == 1
+    assert "B" in win.auto_status.text()
+    win.stop()
+    w2 = MainWindow(viewer=FakeViewer(), auto_file=win.auto_file)   # reopen → the waits are kept
+    try:
+        assert w2.auto.dwells == [0.0, 3.0] and w2.auto_dwell_spins[1].value() == 3
+    finally:
+        w2.timer.stop()
+        w2.close()
+
+
+def test_auto_add_copies_dwell_and_remove_drops_it(win):
+    _teach(win, [0.0, 20.0, 60.0, 10.0], [30.0, 0.0, 80.0, -10.0])
+    win.auto_dwell_spins[1].setValue(1.5)
+    win.set_target([-20.0, 10.0, 70.0, 0.0])
+    win.auto_add()
+    assert win.auto.dwells == [0.5, 1.5, 1.5]          # a new point waits like the previous one
+    win.auto_dwell_spins[2].setValue(4)
+    win.auto_remove(1)
+    assert win.auto.dwells == [0.5, 4.0] and win.auto_dwell_spins[1].value() == 4

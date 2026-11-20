@@ -1,6 +1,6 @@
 # A ⇄ B loop (auto_cycle.py) — pure state machine + saving/loading the point file
 import pytest
-from auto_cycle import AutoCycle, load_points, save_points
+from auto_cycle import AutoCycle, load_dwells, load_points, save_points
 
 A, B = [0.0, 10.0, 20.0, 30.0], [40.0, 0.0, 60.0, -10.0]
 
@@ -100,3 +100,23 @@ def test_approaching_only_until_first_point():
     assert c.approaching                              # first run to A
     _arrive(c, 1, A)
     assert not c.approaching
+
+
+def test_dwell_per_point():
+    c = AutoCycle([A, B], dwell=9, dwells=[0.0, 2.0])
+    c.start(0)
+    _arrive(c, 1, A)
+    assert c.update(1.0, False, A) == B               # A waits 0 s → moves on at once
+    _arrive(c, 2, B)
+    assert c.update(3.9, False, B) is None            # B waits 2 s, not over yet
+    assert c.update(4.0, False, B) == A
+    assert AutoCycle([A, B], dwell=0.7).dwell_at(1) == 0.7   # not set → default
+
+
+def test_dwells_file_roundtrip(tmp_path):
+    f = tmp_path / "pts.json"
+    assert load_dwells(f) == []
+    save_points([A, B], f, [0.5, 2.0])
+    assert load_points(f) == [A, B] and load_dwells(f) == [0.5, 2.0]
+    save_points([A, B], f)                            # file without waits → []
+    assert load_dwells(f) == []

@@ -17,7 +17,8 @@ MAX_POINTS = 8          # most points in a work sequence (A … H)
 class AutoCycle:
     points: list                         # [[q1..q4], ...] — points A, B, C … (in running order)
     speed: float = 60.0                  # max joint speed (°/s)
-    dwell: float = 0.5                   # wait at each point (s) — e.g. time to pick/place a part
+    dwell: float = 0.5                   # default wait at a point (s) — used when the point has no own value
+    dwells: list = field(default_factory=list)   # wait per point (s) e.g. A 0.5, B 2.0 (pick/place a part)
     cycles: int = 0                      # number of cycles (0 = unlimited, until Stop)
     running: bool = False
     phase: str = "idle"                  # idle | move | dwell | done | stopped
@@ -67,13 +68,17 @@ class AutoCycle:
                         self.running, self.phase = False, "done"
                         return None
                 self._cycle_start = now
-            self.phase, self._dwell_end = "dwell", now + self.dwell
+            self.phase, self._dwell_end = "dwell", now + self.dwell_at(self.index)
             return None
         if self.phase == "dwell" and now >= self._dwell_end:
             self.index = (self.index + 1) % len(self.points)
             self.phase = "move"
             return self.points[self.index]
         return None
+
+    def dwell_at(self, i):
+        """wait at point i (not set = the default dwell)"""
+        return self.dwells[i] if i < len(self.dwells) and self.dwells[i] is not None else self.dwell
 
     @staticmethod
     def name(i):
@@ -103,5 +108,15 @@ def load_points(path=POINTS_FILE):
         return [None, None]
 
 
-def save_points(points, path=POINTS_FILE):
-    Path(path).write_text(json.dumps({"points": points}, indent=1), encoding="utf-8")
+def save_points(points, path=POINTS_FILE, dwells=None):
+    data = {"points": points} if dwells is None else {"points": points, "dwells": dwells}
+    Path(path).write_text(json.dumps(data, indent=1), encoding="utf-8")
+
+
+def load_dwells(path=POINTS_FILE):
+    """saved wait per point → [s, ...] (none/unreadable = [] → defaults)"""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return [None if v is None else max(0.0, float(v)) for v in data.get("dwells", [])][:MAX_POINTS]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return []
