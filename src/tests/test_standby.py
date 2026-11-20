@@ -15,13 +15,13 @@ def cfg(tmp_path):
 
 
 def test_save_standby_rewrites_line(cfg):
-    save_standby([10, 20.04, 30, 40, 0], cfg)
+    save_standby([10, 20.04, 30, 40], cfg)
     text = cfg.read_text(encoding="utf-8")
-    assert "STANDBY_Q = [10.0, 20.0, 30.0, 40.0, 0.0]" in text
+    assert "STANDBY_Q = [10.0, 20.0, 30.0, 40.0]" in text
     assert text.count("STANDBY_Q =") == 1
 
 
-@pytest.mark.parametrize("bad", [[0, 500, 0, 0, 0], [0, math.nan, 0, 0, 0]])
+@pytest.mark.parametrize("bad", [[0, 500, 0, 0], [0, math.nan, 0, 0]])
 def test_save_standby_rejects_bad(cfg, bad):
     before = cfg.read_text(encoding="utf-8")
     with pytest.raises(ValueError):
@@ -30,6 +30,6 @@ def test_save_standby_rejects_bad(cfg, bad):
 
 
 def test_default_standby_within_limits():
-    for i, j in enumerate(config.JOINTS):
-        if j["used"]:
-            assert config.Q_MIN[i] <= config.STANDBY_Q[i] <= config.Q_MAX[i]
+    assert len(config.STANDBY_Q) == len(config.JOINTS)
+    for i in range(len(config.JOINTS)):
+        assert config.Q_MIN[i] <= config.STANDBY_Q[i] <= config.Q_MAX[i]

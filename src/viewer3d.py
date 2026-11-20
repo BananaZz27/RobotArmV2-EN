@@ -11,7 +11,7 @@ import config
 from kinematics import forward_kinematics
 
 LINK_RADIUS, JOINT_RADIUS, AXIS_LENGTH = 9.0, 13.0, 40.0
-REACH = config.D1 + config.A2 + config.A3 + config.D5
+REACH = config.D1 + config.A2 + config.A3 + config.A4
 ARROW_X_TO_Z = np.array([[0.0, 0, -1], [0, 1, 0], [1, 0, 0]])   # rotate an arrow pointing +x to point +z
 
 
@@ -34,7 +34,7 @@ class ArmVisual:
     def __init__(self, plotter, color, opacity, show_axes):
         cyl = pv.Cylinder(center=(0, 0, 0.5), direction=(0, 0, 1), radius=1.0, height=1.0, resolution=24)
         sphere = pv.Sphere(radius=1.0, theta_resolution=20, phi_resolution=20)
-        n = len(forward_kinematics([0] * 5).frames) - 1
+        n = len(forward_kinematics([0] * 4).frames) - 1
         style = dict(color=color, opacity=opacity, smooth_shading=True, pickable=False)
         self.links = [plotter.add_mesh(cyl.copy(), **style) for _ in range(n)]
         self.joints = [plotter.add_mesh(sphere.copy(), **{**style, "color": "#444444"}) for _ in range(n)]
@@ -86,7 +86,7 @@ class Viewer3D(QWidget):
         self.actual.set_visible(False)
         self._marker = p.add_mesh(pv.Sphere(radius=7), color="#2ec4b6", pickable=False)
         self._marker.SetVisibility(False)
-        self.target.update([0] * 5)
+        self.target.update([0] * 4)
         p.camera_position = [(REACH * 1.6, -REACH * 1.6, REACH * 1.2), (0, 0, REACH * 0.35), (0, 0, 1)]
         self._dirty = True
         self._timer = QTimer(self, interval=33)            # redraw at most ~30 FPS

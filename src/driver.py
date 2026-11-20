@@ -109,8 +109,7 @@ class Driver:
         if actual is None or self._safe():
             self._corr, self.message = None, "Not correcting: cannot read angles/voltage"
             return
-        err = [t - a if j["used"] and not math.isnan(a) else 0.0
-               for j, t, a in zip(config.JOINTS, c["target"], actual)]
+        err = [0.0 if math.isnan(a) else t - a for t, a in zip(c["target"], actual)]
         worst = max(abs(e) for e in err)
         if worst <= config.CORR_TOL:
             self._corr = None

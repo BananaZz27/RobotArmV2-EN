@@ -61,7 +61,7 @@ def test_slider_drives_arm(win):
 
 
 def test_send_moves_smoothly(win):
-    win.set_target([0, 60, 0, 0, 0])
+    win.set_target([0, 60, 0, 0])
     win.send()
     _run(win, 0.2)
     assert 0 < win.link.q_actual[1] < 60
@@ -76,7 +76,7 @@ def test_spin_drives_arm(win):
 
 
 def test_fk_display(win):
-    win.set_target([30, 20, 40, 30, 0])
+    win.set_target([30, 20, 40, 30])
     assert win.fk_values["X"].text().strip() == "157.6" and win.fk_values["Z"].text().strip() == "274.6"
 
 
@@ -102,23 +102,23 @@ def test_low_volt_blocks(win):
     arm.simulated, arm.volt = False, 5.0
     win._use_link(arm)
     win.driver.close()
-    win.set_target([0, 10, 0, 0, 0])
+    win.set_target([0, 10, 0, 0])
     win.send()
     assert not win.driver.mover.busy and "Servo voltage low" in win.log_view.toPlainText()
 
 
 def test_torque_off_blocks_and_target_follows_actual(win):
     win.set_torque(False)
-    win.set_target([0, 10, 0, 0, 0])
+    win.set_target([0, 10, 0, 0])
     win.send()
     assert not win.driver.mover.busy
-    win.link.q_actual = [0, 4, 5, 6, 0]
+    win.link.q_actual = [0, 4, 5, 6]
     win.poll()
     assert win.q_target[:4] == [0, 4, 5, 6]
 
 
 def test_stop(win):
-    win.set_target([0, 20, 0, 0, 0])
+    win.set_target([0, 20, 0, 0])
     win.send()
     _run(win, 0.5)
     win.stop()
@@ -133,7 +133,7 @@ def test_connect_failure(win):
     assert win.link.simulated and "Cannot connect" in win.conn_label.text()
 
 
-def _fake_arm(q=(5.0, 6.0, 7.0, 8.0, 0.0), volt=7.6):
+def _fake_arm(q=(5.0, 6.0, 7.0, 8.0), volt=7.6):
     arm = SimLink()
     arm.simulated, arm.volt, arm.q_actual = False, volt, list(q)
     return arm
@@ -166,7 +166,7 @@ def test_connect_low_volt_does_not_move(win):
 
 
 def test_connect_missing_servo_does_not_move(win):
-    arm = _fake_arm(q=(5.0, float("nan"), 7.0, 8.0, 0.0))
+    arm = _fake_arm(q=(5.0, float("nan"), 7.0, 8.0))
     win.connect_fn = lambda: arm
     win.toggle_connect()
     win.driver.close()
@@ -185,9 +185,9 @@ def test_set_standby_here(win, monkeypatch):
     win.save_standby = saved.append
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
     try:
-        win.set_target([10, 20, 30, 40, 0])
+        win.set_target([10, 20, 30, 40])
         win.set_standby_here()
-        assert saved == [[10.0, 20.0, 30.0, 40.0, 0.0]] and config.STANDBY_Q == [10.0, 20.0, 30.0, 40.0, 0.0]
+        assert saved == [[10.0, 20.0, 30.0, 40.0]] and config.STANDBY_Q == [10.0, 20.0, 30.0, 40.0]
     finally:
         config.STANDBY_Q = old
 
@@ -207,7 +207,7 @@ def test_jog_joint_hold_and_release(win):
 
 
 def test_jog_xyz_stops_at_singularity_and_logs(win):
-    win.set_target([0, 30, 20, 20, 0])
+    win.set_target([0, 30, 20, 20])
     win.send()
     _run(win, 2.0)
     win.jog_buttons[("X", +1)].pressed.emit()
@@ -217,9 +217,9 @@ def test_jog_xyz_stops_at_singularity_and_logs(win):
 
 
 def test_singularity_label_warns(win):
-    win.set_target([0, 0, 0, 0, 0])                 # pointing up = both kinds of singularity
+    win.set_target([0, 0, 0, 0])                 # pointing up = both kinds of singularity
     assert "SINGULARITY" in win.sing_label.text() and "e63946" in win.sing_label.styleSheet()
-    win.set_target([10, 30, 50, 20, 0])
+    win.set_target([10, 30, 50, 20])
     assert "Not near" in win.sing_label.text()
 
 
@@ -230,7 +230,7 @@ def test_ik_shows_proof(win):
 
 def test_ik_falls_back_to_nearest_phi(win):
     from kinematics import forward_kinematics, inverse_kinematics
-    f = forward_kinematics([0, 30, 60, 20, 0])
+    f = forward_kinematics([0, 30, 60, 20])
     assert not inverse_kinematics(f.x, f.y, f.z, -90).ok          # φ −90 cannot reach this point
     win.ik_x.setValue(f.x)
     win.ik_y.setValue(f.y)

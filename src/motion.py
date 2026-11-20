@@ -22,9 +22,8 @@ def min_jerk(tau):
 
 
 def clamp_q(q):
-    """clamp every joint to its limit · unconnected joints (J5) = 0"""
-    return [min(max(v, config.Q_MIN[i]), config.Q_MAX[i]) if j["used"] else 0.0
-            for i, (j, v) in enumerate(zip(config.JOINTS, q))]
+    """clamp every joint to its limit"""
+    return [min(max(v, config.Q_MIN[i]), config.Q_MAX[i]) for i, v in enumerate(q)]
 
 
 class Mover:

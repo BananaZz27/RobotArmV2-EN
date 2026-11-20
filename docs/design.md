@@ -36,7 +36,7 @@ The user wants every kind of control in one window: **jog (hold a button), targe
 - `jog_joint(i, ±1)` / `jog_xyz(axis, ±1)` / `release()` — velocity ramps up at a_max, release eases to a stop · xyz jog: tip += v·dt then IK — no IK / limit → stop with a reason
 - `follow(q_goal)` — slider: chase at v ≤ v_max, easing in before arrival (v ≤ √(2·a·|e|))
 - `stop()` — v = 0 immediately, target dropped · `reset(q)` — setpoint = actual angles
-- every value clamped to `Q_MIN..Q_MAX` · J5 (removed) locked at 0
+- every value clamped to `Q_MIN..Q_MAX` · 4-joint arm (J5 head removed from the program 2026-11-20)
 
 **Sending to the servos:** every tick send the pose with a servo move time so the servo interpolates between points — DirectLink's streaming mode does not enforce 300 ms but **rejects commands where a joint jumps too far in < 300 ms** (bug guard)
 
@@ -45,7 +45,7 @@ The user wants every kind of control in one window: **jog (hold a button), targe
 **Correction (can be turned off, on by default):** after a move finishes wait 0.4 s → joints with |error| > 0.5° and < 5° → `goto_q(setpoint + 0.8·error)` smoothly, ≤ 3 rounds, total ≤ ±5°
 
 ## Changes since the original design (all asked for by the user)
-- GUI: tkinter → **PyQt6 + PyVista 3D in the ws-control style** (Joint / Jog / IK / Status tabs, FK box with T⁰₅, log)
+- GUI: tkinter → **PyQt6 + PyVista 3D in the ws-control style** (Joint / Jog / IK / Status tabs, FK box with T⁰₄, log)
 - **No speed limit in the GUI**: v = 150 °/s, a = 600 °/s² for sliders/targets; sliders drive the arm directly (no Live checkbox)
 - Jog has its own slower values (30 °/s, 90 °/s², tip 40 mm/s) and eases out at 0.5·a; correction also runs after a jog stops
 - **Look-ahead streaming**: send the pose 80 ms ahead with an 80 ms servo time (Windows ticks jitter 27–52 ms); jump guard 20°

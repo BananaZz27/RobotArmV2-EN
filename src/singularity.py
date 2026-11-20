@@ -5,7 +5,7 @@
 #
 # Closed-form proof: split p into two layers
 #   1) base: (x, y) = (r cos θ1, r sin θ1)  →  det ∂(x,y)/∂(θ1,r) = r
-#   2) planar 3-joint arm (θ2, θ3, θ4) → (r, z, φ)  →  det = a2 · a3 · sin θ3   (planar 3R result, d5 cancels)
+#   2) planar 3-joint arm (θ2, θ3, θ4) → (r, z, φ)  →  det = a2 · a3 · sin θ3   (planar 3R result, a4 cancels)
 #   multiply:  |det J| = r · a2 · a3 · |sin θ3|
 # ⇒ two kinds of singularity:
 #   • r = 0       tip on the base axis       → turning the base does not move the tip (one direction lost)
@@ -32,7 +32,7 @@ def jacobian(q):
     """J 4×4 = ∂(x, y, z, φ)/∂(θ1..θ4) [mm/rad, rad/rad] by central difference"""
     J = np.zeros((4, 4))
     for k in range(4):
-        dq = [0.0] * 5
+        dq = [0.0] * 4
         dq[k] = STEP_DEG
         plus = _pose([a + b for a, b in zip(q, dq)])
         minus = _pose([a - b for a, b in zip(q, dq)])

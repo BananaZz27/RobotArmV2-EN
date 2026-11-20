@@ -74,7 +74,7 @@ save(fig, "min_jerk")
 # ---------- 2) jog: hold → ramp up, release → ease out, near a limit → brake ----------
 dt = config.PERIOD_S
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(10, 3.6))
-m = Mover([0] * 5)
+m = Mover([0] * 4)
 m.jog_joint(2, +1)
 ts, vs = [], []
 for k in range(int(2.2 / dt)):
@@ -92,7 +92,7 @@ a1.set_xlabel("time (s)")
 a1.set_ylabel("joint speed (°/s)")
 a1.set_title(f"hold: speed rises by a·dt (a = {config.JOG_A:.0f} °/s²) · release: falls by {config.JOG_STOP}·a·dt", fontsize=10)
 lim = config.Q_MAX[2]
-m = Mover([0, 0, lim - 12, 0, 0])
+m = Mover([0, 0, lim - 12, 0])
 m.jog_joint(2, +1)
 qs, vs = [], []
 for _ in range(int(1.5 / dt)):
@@ -132,8 +132,8 @@ save(fig, "lookahead_measured")
 # ---------- 4) singularity: |det J| formula vs numerical ----------
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(10, 3.6))
 q3s = np.linspace(-120, 120, 61)
-num = [analyze([0, 40, q, 20, 0])["det_numeric"] / 1e6 for q in q3s]
-form = [analyze([0, 40, q, 20, 0])["det_formula"] / 1e6 for q in q3s]
+num = [analyze([0, 40, q, 20])["det_numeric"] / 1e6 for q in q3s]
+form = [analyze([0, 40, q, 20])["det_formula"] / 1e6 for q in q3s]
 a1.plot(q3s, form, color=C1)
 a1.plot(q3s, num, "o", color=C2, ms=4)
 label(a1, 60, form[45], "formula r·a2·a3·|sin θ3|", C1)
@@ -148,8 +148,8 @@ a1.set_xlabel("elbow angle q3 (°)  [shoulder 40°, wrist 20°]")
 a1.set_ylabel("|det J| (×10⁶)")
 a1.set_title("both methods give the same value = evidence the formula is right", fontsize=10)
 q2s = np.linspace(-60, 60, 61)
-rs = [analyze([0, q, 90, 60, 0])["r"] for q in q2s]
-dets = [analyze([0, q, 90, 60, 0])["det_numeric"] / 1e6 for q in q2s]
+rs = [analyze([0, q, 90, 60])["r"] for q in q2s]
+dets = [analyze([0, q, 90, 60])["det_numeric"] / 1e6 for q in q2s]
 a2.plot(rs, dets, "o", color=C2, ms=4)
 a2.plot(rs, np.array(rs) * config.A2 * config.A3 / 1e6, color=C1)
 label(a2, rs[45], rs[45] * config.A2 * config.A3 / 1e6, "formula r·a2·a3 (sin θ3 = 1)", C1)

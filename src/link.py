@@ -10,7 +10,6 @@ import serial
 import config
 from scs import ScsBus
 
-USED_JOINTS = [j for j in config.JOINTS if j["used"]]   # only talk to connected joints (J5 removed)
 ONLINE_TIMEOUT_S = 0.5                                  # no servo answered for longer than this = offline
 
 
@@ -18,8 +17,7 @@ def jump_too_big(q_from, q_to, time_ms):
     """bug guard: a command shorter than MIN_MOVE_MS where some joint jumps more than JUMP_GUARD_DEG → True (do not send)"""
     if time_ms >= config.MIN_MOVE_MS or q_from is None:
         return False
-    return any(j["used"] and abs(b - a) > config.JUMP_GUARD_DEG
-               for j, a, b in zip(config.JOINTS, q_from, q_to) if not math.isnan(a))
+    return any(abs(b - a) > config.JUMP_GUARD_DEG for a, b in zip(q_from, q_to) if not math.isnan(a))
 
 
 class SimLink:
@@ -37,7 +35,7 @@ class SimLink:
         if not all(math.isfinite(v) for v in q) or jump_too_big(self.q_actual, q, time_ms):
             self.message = "Not sent: invalid angle or a jump that is too fast"
             return False
-        self.q_actual = [float(v) if j["used"] else 0.0 for j, v in zip(config.JOINTS, q)]
+        self.q_actual = [float(v) for v in q]
         return True
 
     def stop(self):
@@ -75,7 +73,7 @@ class DirectLink:
             with self.lock:
                 self.bus.detect_echo()
                 self._hold_here()
-                for j in USED_JOINTS:
+                for j in config.JOINTS:
                     self.bus.torque(j["id"], True)
         except OSError:
             self.ser.close()
@@ -87,7 +85,7 @@ class DirectLink:
     # ---------- internals (caller holds the lock) ----------
     def _hold_here(self):
         """every joint: read the actual position and set it as the goal (= hold where it is)"""
-        for j in USED_JOINTS:
+        for j in config.JOINTS:
             got = self.bus.read_pos_volt(j["id"])
             if got:
                 self.bus.write_pos(j["id"], got[0], config.MIN_MOVE_MS)
@@ -98,9 +96,6 @@ class DirectLink:
         q, volt, any_ok, servo = [], None, False, {}
         with self.lock:
             for j in config.JOINTS:
-                if not j["used"]:
-                    q.append(0.0)
-                    continue
                 d = self.bus.read(j["id"], 56, 8)
                 if d is None:
                     q.append(math.nan)
@@ -137,8 +132,7 @@ class DirectLink:
         try:
             with self.lock:
                 for j, qi in zip(config.JOINTS, q):
-                    if j["used"]:
-                        self.bus.write_pos(j["id"], config.q_to_raw(j, qi), t)
+                    self.bus.write_pos(j["id"], config.q_to_raw(j, qi), t)
                 self.q_sent = list(q)
         except OSError:
             self.last_rx = -math.inf
@@ -159,7 +153,7 @@ class DirectLink:
             with self.lock:
                 if on:
                     self._hold_here()
-                for j in USED_JOINTS:
+                for j in config.JOINTS:
                     self.bus.torque(j["id"], on)
                 self.q_sent = None
         except OSError:

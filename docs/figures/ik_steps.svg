@@ -25,7 +25,7 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <text class="ts" x="371" y="259">s = 3.3</text>
 <line x1="92" y1="350" x2="308" y2="350" stroke="#5F5E5A" stroke-width="0.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
 <text class="ts" x="200" y="366" text-anchor="middle">rc = 200.0</text>
-<text class="ts" x="302" y="292" text-anchor="end">d5 = 50.0</text>
+<text class="ts" x="302" y="292" text-anchor="end">a4 = 50.0</text>
 <text class="ts" x="160" y="217" text-anchor="end">a2 = 137.0</text>
 <text class="ts" x="236" y="230" text-anchor="middle">a3 = 98.3</text>
 <circle class="c-purple" cx="90" cy="273.6" r="7" stroke-width="1"/>
@@ -39,14 +39,14 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <g class="c-coral"><circle cx="203" cy="166" r="9" stroke-width="0.5"/><text class="th" x="203" y="166" text-anchor="middle" dominant-baseline="central">3</text></g>
 <g class="c-coral"><circle cx="150" cy="293" r="9" stroke-width="0.5"/><text class="th" x="150" y="293" text-anchor="middle" dominant-baseline="central">4</text></g>
 <g class="c-coral"><circle cx="322" cy="289" r="9" stroke-width="0.5"/><text class="th" x="322" y="289" text-anchor="middle" dominant-baseline="central">5</text></g>
-<text class="ts" x="336" y="293">θ₄ − 90°</text>
+<text class="ts" x="336" y="293">θ₄</text>
 <text class="th" x="436" y="50">IK steps</text>
 <g class="c-coral"><circle cx="442" cy="72" r="8" stroke-width="0.5"/><text class="ts" x="442" y="72" text-anchor="middle" dominant-baseline="central">1</text></g>
 <text class="ts" x="456" y="76">θ₁ = atan2(y, x) = 0°  (top view)</text>
 <g class="c-coral"><circle cx="442" cy="104" r="8" stroke-width="0.5"/><text class="ts" x="442" y="104" text-anchor="middle" dominant-baseline="central">2</text></g>
 <text class="ts" x="456" y="108">step back from the tip to the wrist along φ</text>
-<text class="ts" x="456" y="126">rc = r − d5·cos φ = 200.0</text>
-<text class="ts" x="456" y="144">s = z − d5·sin φ − d1 = 3.3</text>
+<text class="ts" x="456" y="126">rc = r − a4·cos φ = 200.0</text>
+<text class="ts" x="456" y="144">s = z − a4·sin φ − d1 = 3.3</text>
 <g class="c-coral"><circle cx="442" cy="172" r="8" stroke-width="0.5"/><text class="ts" x="442" y="172" text-anchor="middle" dominant-baseline="central">3</text></g>
 <text class="ts" x="456" y="176">law of cosines (purple dashes = 3rd side)</text>
 <text class="ts" x="456" y="194">D = (rc²+s²−a2²−a3²)/(2·a2·a3)</text>
@@ -57,7 +57,7 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <text class="ts" x="456" y="280">  − atan2(a3·sinθ₃, a2 + a3·cosθ₃)</text>
 <text class="ts" x="456" y="298">θ₂ = 27.3°</text>
 <g class="c-coral"><circle cx="442" cy="326" r="8" stroke-width="0.5"/><text class="ts" x="442" y="326" text-anchor="middle" dominant-baseline="central">5</text></g>
-<text class="ts" x="456" y="330">θ₄ = φ − θ₂ − θ₃ + 90° = 37.3°</text>
+<text class="ts" x="456" y="330">θ₄ = φ − θ₂ − θ₃ = −52.7°</text>
 <text class="th" x="436" y="366">convert to servo angles</text>
-<text class="ts" x="436" y="390">q = (0, 62.7, 64.5, 52.7, 0)</text>
+<text class="ts" x="436" y="390">q = (0, 62.7, 64.5, 52.7)</text>
 </svg>

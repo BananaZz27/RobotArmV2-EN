@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="680" height="525" viewBox="0 0 680 525" role="img"><title>5-DOF diagram of the arm</title><desc>Side view of the 5-joint arm: base yaw, shoulder elbow wrist pitch, head roll, with link lengths and servo IDs</desc><style>
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="525" viewBox="0 0 680 525" role="img"><title>4-DOF diagram of the arm</title><desc>Side view of the 4-joint arm: base yaw, shoulder elbow wrist pitch, with link lengths and servo IDs</desc><style>
 text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 .t{font-size:14px;fill:#2C2C2A}.ts{font-size:12px;fill:#444441}.th{font-size:14px;font-weight:500;fill:#2C2C2A}
 .c-purple{fill:#EEEDFE;stroke:#534AB7}.c-teal{fill:#E1F5EE;stroke:#0F6E56}.c-gray{fill:#F1EFE8;stroke:#5F5E5A}
@@ -20,7 +20,6 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <circle cx="227.9" cy="229.1" r="2" fill="#534AB7"/>
 <circle class="c-purple" cx="320.3" cy="195.5" r="9" stroke-width="1"/>
 <circle cx="320.3" cy="195.5" r="2" fill="#534AB7"/>
-<ellipse class="c-teal" cx="379" cy="205.8" rx="4" ry="11" stroke-width="1" transform="rotate(10 379 205.8)"/>
 <circle cx="398.8" cy="209.3" r="4" fill="#5F5E5A"/>
 <text class="ts" x="128" y="392" text-anchor="end">96.7 mm</text>
 <text class="ts" x="188" y="291" text-anchor="end">137.0 mm</text>
@@ -29,9 +28,9 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <line class="leader" x1="320.3" y1="195.5" x2="462" y2="110"/>
 <text class="th" x="470" y="108">J4 wrist · pitch · ID 2</text>
 <text class="ts" x="470" y="126">+ leans forward</text>
-<line class="leader" x1="379" y1="205.8" x2="462" y2="165"/>
-<text class="th" x="470" y="163">J5 head · ID 1 (removed)</text>
-<text class="ts" x="470" y="181">locked q₅ = 0, does not affect position</text>
+<line class="leader" x1="398.8" y1="209.3" x2="462" y2="165"/>
+<text class="th" x="470" y="163">arm tip</text>
+<text class="ts" x="470" y="181">no head servo any more (4-joint arm)</text>
 <line class="leader" x1="227.9" y1="229.1" x2="462" y2="270"/>
 <text class="th" x="470" y="268">J3 elbow · pitch · ID 7</text>
 <text class="ts" x="470" y="286">+ leans forward</text>
@@ -44,6 +43,6 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <circle class="c-purple" cx="100" cy="480" r="6" stroke-width="1"/>
 <text class="ts" x="112" y="484">pitch: axis out of screen</text>
 <ellipse class="c-teal" cx="330" cy="480" rx="9" ry="5" stroke-width="1"/>
-<text class="ts" x="346" y="484">yaw / roll: rotates about the link's own axis</text>
-<text class="ts" x="100" y="508">pose shown q = (0°, 25°, 45°, 30°, 0°) · q = 0 for every joint = straight up</text>
+<text class="ts" x="346" y="484">yaw: rotates about the link's own axis</text>
+<text class="ts" x="100" y="508">pose shown q = (0°, 25°, 45°, 30°) · q = 0 for every joint (raw = that joint's center) = straight up</text>
 </svg>

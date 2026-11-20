@@ -4,7 +4,7 @@
 #  ┌ [Connect COM11] ● status ──────────────────────── [Torque OFF] [■ STOP (Space)] ┐
 #  │ ┌──────── 3D ────────┐ ┌ tabs: Joint | Jog | Inverse Kinematics | Status ┐     │
 #  │ └────────────────────┘ └──────────────────────────────────────────────────┘     │
-#  │ Forward Kinematics (Target pose): X Y Z φ Yaw + T⁰₅ + singularity check          │
+#  │ Forward Kinematics (Target pose): X Y Z φ Yaw + T⁰₄ + singularity check          │
 #  │ Log                                                                              │
 #  └──────────────────────────────────────────────────────────────────────────────────┘
 import math
@@ -27,7 +27,7 @@ from motion import Mover, clamp_q
 from singularity import analyze, report
 from servo_calibrate import save_standby
 
-USED = [i for i, j in enumerate(config.JOINTS) if j["used"]]
+USED = range(len(config.JOINTS))     # every joint (base, shoulder, elbow, wrist)
 SLIDER_SCALE = 10      # sliders are int → ×10 for 0.1° resolution
 MONO = QFont("Consolas")
 
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         self.connect_fn = connect_fn or (lambda: DirectLink(config.DIRECT_PORT))
         self.save_standby = save_standby_fn          # tests pass a fake so config.py is not written
         self.link, self.driver = None, None
-        self.q_target = [0.0] * 5
+        self.q_target = [0.0] * len(config.JOINTS)
         self.torque_on = True
         self.setWindowTitle("RobotArm 4DOF — Control GUI (USB adapter)")
         self.resize(1400, 900)
@@ -132,7 +132,7 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(1, 1)
 
         zero = QPushButton("Zero (straight up)")
-        zero.clicked.connect(lambda: (self.set_target([0.0] * 5), self.send()))
+        zero.clicked.connect(lambda: (self.set_target([0.0] * len(config.JOINTS)), self.send()))
         pin = QPushButton("📌 Set this pose as Standby")
         pin.setToolTip("Save the current Target pose to config.py — the next Connect moves the arm here")
         pin.clicked.connect(self.set_standby_here)
@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
         bar.addStretch(1)
         bar.addWidget(zero)
         hint = QLabel("Drag a slider / type a number → the arm follows immediately · orange in 3D = Target, "
-                      "translucent blue = actual pose\nJ5 head removed")
+                      "translucent blue = actual pose")
         hint.setStyleSheet("color:#666")
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
         self.driver.do(lambda m: m.release())
 
     def _build_ik_tab(self):
-        reach = config.D1 + config.A2 + config.A3 + config.D5
+        reach = config.D1 + config.A2 + config.A3 + config.A4
         self.ik_x = _spin(-reach, reach, 5, " mm", 110)
         self.ik_y = _spin(-reach, reach, 5, " mm", 10)
         self.ik_z = _spin(-reach / 2, reach, 5, " mm", 350)
@@ -269,7 +269,7 @@ class MainWindow(QMainWindow):
         lay = QHBoxLayout(box)
         lay.addLayout(grid)
         lay.addSpacing(12)
-        lay.addWidget(QLabel("T⁰₅ ="))
+        lay.addWidget(QLabel("T⁰₄ ="))
         lay.addWidget(self.fk_table)
         lay.addSpacing(12)
         self.sing_label = QLabel()                    # singularity check of the Target pose + evidence (singularity.py)
@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
         if self.link:
             self.link.close()
         self.link = link
-        q0 = link.q_actual if link.q_actual is not None else [0.0] * 5
+        q0 = link.q_actual if link.q_actual is not None else [0.0] * len(config.JOINTS)
         self.driver = Driver(link, Mover(q0))
         self.driver.correct = self.correct_box.isChecked()
         self.driver.start()

@@ -11,7 +11,7 @@ Looks like the earlier ws-control GUI (PyQt6 + PyVista 3D view) but **needs no E
 [Port COM11][Connect] ● Connected 7.8 V                     [Torque OFF] [■ STOP (Space)]
 ┌───────── 3D (orange = Target, translucent blue = actual) ─────────┐ ┌ Joint | Jog | Inverse Kinematics | Status ┐
 └───────────────────────────────────────────────────────────────────┘ └───────────────────────────────────────────┘
-Forward Kinematics (Target pose): X Y Z φ Yaw + T⁰₅ + singularity check          Log
+Forward Kinematics (Target pose): X Y Z φ Yaw + T⁰₄ + singularity check          Log
 ```
 
 - **Start:** `RobotArm.bat` → the program **connects by itself** and the arm moves to the **Standby pose** (60 °/s, after checking ≥ 6 V and all 4 servos; STOP/Space stops it)

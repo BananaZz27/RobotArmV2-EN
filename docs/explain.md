@@ -1,6 +1,6 @@
-# How the maths works — RobotArmV2 (4-joint arm, PC drives the servos directly)
+# How the maths works — RobotArmV2 (4-joint arm: base, shoulder, elbow, wrist; PC drives the servos directly)
 
-Charts are generated from the real code by `docs/make_charts.py` (edit a formula and re-run) · the FK/IK arm figures come from RobotControl `v2/docs` (already d5 = 50 mm)
+Charts are generated from the real code by `docs/make_charts.py` (edit a formula and re-run) · the FK/IK arm figures are adapted from RobotControl `v2/docs` to the 4-row DH table
 
 ## 1. Overview: data flow from the window to the servos
 
@@ -20,7 +20,14 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 ![Side view](figures/kinematic_side.svg)
 ![Top view](figures/kinematic_top.svg)
 
-- DH table: d1 = 96.7, a2 = 137.0, a3 = 98.3, **d5 = 50** mm (J5 head removed → q5 = 0)
+- 4-row DH table (head servo J5 removed → wrist to tip is one straight link, **a4 = 50 mm**):
+
+| Link | a (mm) | α | d (mm) | θ |
+|---|---|---|---|---|
+| 1 base | 0 | 90° | 96.7 | θ₁ |
+| 2 shoulder | 137.0 | 0 | 0 | θ₂ |
+| 3 elbow | 98.3 | 0 | 0 | θ₃ |
+| 4 wrist | 50.0 | 0 | 0 | θ₄ |
 - The servo angle q (0 = straight up) is not the DH angle θ → convert before the equations (only in `q_to_theta`):
 
 | Joint | θ (DH) | Why |
@@ -28,16 +35,16 @@ Charts are generated from the real code by `docs/make_charts.py` (edit a formula
 | J1 base | θ₁ = q₁ | base positive = counter-clockwise = positive θ about z₀ |
 | J2 shoulder | θ₂ = 90° − q₂ | θ₂ is measured from horizontal · upright = 90° |
 | J3 elbow | θ₃ = −q₃ | elbow leaning forward (positive q) = clockwise in the arm plane |
-| J4 wrist | θ₄ = 90° − q₄ | α₄ = 90°, so add 90° to make the head follow the link when straight |
-| J5 head | θ₅ = q₅ = 0 | removed · roll does not change position |
+| J4 wrist | θ₄ = −q₄ | wrist leaning forward = clockwise, like the elbow |
 
-- `T⁰₅ = A₁A₂A₃A₄A₅` → 4th column = position (x, y, z) · φ = θ2 + θ3 + θ4 − 90° (tip angle vs horizontal)
+- `T⁰₄ = A₁A₂A₃A₄` → 4th column = position (x, y, z) · **φ = θ2 + θ3 + θ4** (tip angle vs horizontal — the shoulder, elbow and wrist axes are parallel, so the angles simply add)
+- The 4-row table gives exactly the same tip as the old 5-row table (α₄ = 90°, d5 = 50, θ₅ = 0) in every pose — a test checks 300 poses
 
 ## 3. Inverse Kinematics: position → joint angles
 
 ![IK steps](figures/ik_steps.svg)
 
-1. θ1 = atan2(y, x) · 2. step back from the tip to the wrist along φ · 3. law of cosines gives θ3 · 4. θ2 · 5. θ4 = φ − θ2 − θ3 + 90°
+1. θ1 = atan2(y, x) · 2. step back from the tip to the wrist along φ · 3. law of cosines gives θ3 · 4. θ2 · 5. θ4 = φ − θ2 − θ3
 - **Near the base axis** (r < 30 mm) the slides' second solution θ1 + 180° with negative r is used when it is closer to the current base angle — otherwise a tip 0.2 mm behind the axis made atan2 jump to 180° (base out of limit)
 - **φ not reachable** (position reachable, angle not) → the window finds the nearest reachable φ (1° steps) and says so in the Log
 

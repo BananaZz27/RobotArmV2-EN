@@ -11,26 +11,26 @@ from kinematics import dh_matrix, forward_kinematics, inverse_kinematics, q_to_t
 # ---------- FK ----------
 
 def test_fk_all_zero_points_straight_up():
-    fk = forward_kinematics([0, 0, 0, 0, 0])
+    fk = forward_kinematics([0, 0, 0, 0])
     assert (fk.x, fk.y, fk.z) == pytest.approx((0, 0, 382.0), abs=0.1)
     assert fk.phi == pytest.approx(90)
 
 
 def test_fk_shoulder_30_leans_to_plus_x():
-    fk = forward_kinematics([0, 30, 0, 0, 0])
+    fk = forward_kinematics([0, 30, 0, 0])
     assert (fk.x, fk.y, fk.z) == pytest.approx((142.65, 0, 343.78), abs=0.1)
 
 
 def test_fk_hand_example_matches_doc():
     # hand-worked example in RobotControl/v2/docs/01-fk.md
-    fk = forward_kinematics([30, 20, 40, 30, 0])
+    fk = forward_kinematics([30, 20, 40, 30])
     assert (fk.x, fk.y, fk.z) == pytest.approx((157.61, 90.99, 274.59), abs=0.01)
     assert fk.phi == pytest.approx(0, abs=1e-9)
 
 
 def test_q_theta_table_6_1():
-    assert q_to_theta([10, 20, 30, 40, 50]) == pytest.approx([10, 70, -30, 50, 50])
-    assert theta_to_q(q_to_theta([10, 20, 30, 40, 50])) == pytest.approx([10, 20, 30, 40, 50])
+    assert q_to_theta([10, 20, 30, 40]) == pytest.approx([10, 70, -30, -40])
+    assert theta_to_q(q_to_theta([10, 20, 30, 40])) == pytest.approx([10, 20, 30, 40])
 
 
 def test_dh_matrix_pure_rotation_z():
@@ -39,8 +39,8 @@ def test_dh_matrix_pure_rotation_z():
 
 
 def test_frames_count_and_last_is_T():
-    fk = forward_kinematics([5, 10, 15, 20, 25])
-    assert len(fk.frames) == 6 and np.allclose(fk.frames[-1], fk.T)
+    fk = forward_kinematics([5, 10, 15, 20])
+    assert len(fk.frames) == 5 and np.allclose(fk.frames[-1], fk.T)
 
 
 def test_q_limits_from_raw():
@@ -62,7 +62,7 @@ def _front_poses(n, seed=0):
         fk = forward_kinematics(q)
         c, s = np.cos(np.radians(q[0])), np.sin(np.radians(q[0]))
         r_tip = fk.x * c + fk.y * s
-        r_wrist = r_tip - config.D5 * np.cos(np.radians(fk.phi))
+        r_wrist = r_tip - config.A4 * np.cos(np.radians(fk.phi))
         if r_tip > 1.0 and r_wrist > 1.0:
             poses.append(q)
     return poses
@@ -71,21 +71,21 @@ def _front_poses(n, seed=0):
 def test_ik_roundtrip_500_front_poses():
     for q in _front_poses(500):
         fk = forward_kinematics(q)
-        ik = inverse_kinematics(fk.x, fk.y, fk.z, fk.phi, elbow_up=q[2] > 0, roll=q[4])
+        ik = inverse_kinematics(fk.x, fk.y, fk.z, fk.phi, elbow_up=q[2] > 0, theta1_prev=q[0])   # like the app: pass the current base angle
         assert ik.ok, ik.reason
         fk2 = forward_kinematics(ik.q)
         assert np.linalg.norm([fk2.x - fk.x, fk2.y - fk.y, fk2.z - fk.z]) < 0.01
 
 
 def test_ik_known_pose_from_spec():
-    fk = forward_kinematics([10, 20, 40, 30, 0])
+    fk = forward_kinematics([10, 20, 40, 30])
     ik = inverse_kinematics(fk.x, fk.y, fk.z, fk.phi, elbow_up=True)
-    assert ik.q == pytest.approx([10, 20, 40, 30, 0], abs=1e-6)
+    assert ik.q == pytest.approx([10, 20, 40, 30], abs=1e-6)
 
 
 def test_ik_practical_point_elbow_up():
     ik = inverse_kinematics(200, 0, 50, -90, elbow_up=True)
-    assert ik.ok and ik.q == pytest.approx([0, 62.71, 64.54, 52.75, 0], abs=0.01)
+    assert ik.ok and ik.q == pytest.approx([0, 62.71, 64.54, 52.75], abs=0.01)
 
 
 def test_ik_unreachable_reports_thai_reason():
@@ -109,7 +109,7 @@ def test_ik_singular_above_base_keeps_theta1():
     assert ik.q[1:4] == pytest.approx([0, 0, 0], abs=1e-3)
 
 
-@pytest.mark.parametrize("q0", [[0, -0.5, 0.7, 0.5, 0], [-0.5, -1, 0, 0, 0], [10, -3, 2, 1, 0]])
+@pytest.mark.parametrize("q0", [[0, -0.5, 0.7, 0.5], [-0.5, -1, 0, 0], [10, -3, 2, 1]])
 def test_ik_tip_just_behind_axis_no_base_flip(q0):
     """tip just behind the base axis (the real arm's near-upright pose) → IK must not turn the base 180° (was: base exceeds limit 180°)"""
     f = forward_kinematics(q0)
@@ -119,3 +119,18 @@ def test_ik_tip_just_behind_axis_no_base_flip(q0):
     assert abs(ik.q[0] - q0[0]) < 1e-6
     g = forward_kinematics(ik.q)
     assert (g.x, g.y, g.z) == pytest.approx((f.x, f.y, f.z), abs=1e-6)
+
+
+def test_4_row_dh_same_tip_as_old_5_row_dh():
+    """the 4-row DH table (a4 = 50, θ₄ = −q₄) gives the same tip as the old 5-row table (α₄ = 90°, θ₄ = 90° − q₄, d5 = 50, θ₅ = 0)"""
+    from kinematics import dh_matrix
+    old = [(0.0, 90.0, config.D1), (config.A2, 0.0, 0.0), (config.A3, 0.0, 0.0), (0.0, 90.0, 0.0), (0.0, 0.0, config.A4)]
+    rng = np.random.default_rng(7)
+    for _ in range(300):
+        q = [rng.uniform(lo, hi) for lo, hi in zip(config.Q_MIN, config.Q_MAX)]
+        T = np.eye(4)
+        for (a, al, d), th in zip(old, [q[0], 90 - q[1], -q[2], 90 - q[3], 0.0]):
+            T = T @ dh_matrix(th, d, a, al)
+        fk = forward_kinematics(q)
+        assert np.allclose(T[:3, 3], [fk.x, fk.y, fk.z], atol=1e-9)
+        assert np.allclose(T[:3, 2], fk.T[:3, 0], atol=1e-9)        # tip direction: old z₅ = new x₄

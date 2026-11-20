@@ -19,7 +19,7 @@ class FakeArm(SimLink):
 
     def send_q(self, q, time_ms):
         self.sent.append((list(q), time_ms))      # like DirectLink: jump guard compares to the pose sent, not the sagged angle
-        self.q_actual = [float(v) if j["used"] else 0.0 for j, v in zip(config.JOINTS, q)]
+        self.q_actual = [float(v) for v in q]
         self.q_actual[1] -= self.sag
         return True
 
@@ -40,9 +40,9 @@ def _drive(d, seconds, t0=0.0):
 
 def test_streams_while_moving_and_stops_sending_when_idle():
     arm = FakeArm()
-    d = Driver(arm, Mover([0] * 5, v=10))
+    d = Driver(arm, Mover([0] * 4, v=10))
     d.correct = False
-    d.do(lambda m: m.goto_q([0, 5, 0, 0, 0]))
+    d.do(lambda m: m.goto_q([0, 5, 0, 0]))
     _drive(d, 2.0)
     n = len(arm.sent)
     assert n > 10 and all(t == config.STREAM_MS for _q, t in arm.sent)
@@ -53,8 +53,8 @@ def test_streams_while_moving_and_stops_sending_when_idle():
 
 def test_driver_stops_on_low_volt():
     arm = FakeArm()
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 20, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 20, 0, 0]))
     _drive(d, 0.5)
     arm.volt = 5.5
     _drive(d, 0.2, 0.5)
@@ -63,8 +63,8 @@ def test_driver_stops_on_low_volt():
 
 def test_driver_stops_when_offline():
     arm = FakeArm()
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 20, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 20, 0, 0]))
     arm.is_online = False
     _drive(d, 0.2)
     assert not d.mover.busy and arm.sent == [] and "offline" in d.message
@@ -73,16 +73,16 @@ def test_driver_stops_when_offline():
 def test_refused_send_stops():
     arm = FakeArm()
     arm.send_q = lambda q, t: False
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 20, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 20, 0, 0]))
     _drive(d, 0.2)
     assert not d.mover.busy
 
 
 def test_correction_removes_sag():
     arm = FakeArm(sag=1.5)
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 10, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 10, 0, 0]))
     _drive(d, 10.0)
     assert abs(10 - arm.q_actual[1]) <= config.CORR_TOL
     assert arm.sent[-1][0][1] - 10 <= config.CORR_MAX
@@ -91,49 +91,49 @@ def test_correction_removes_sag():
 
 def test_correction_off():
     arm = FakeArm(sag=1.5)
-    d = Driver(arm, Mover([0] * 5, v=10))
+    d = Driver(arm, Mover([0] * 4, v=10))
     d.correct = False
-    d.do(lambda m: m.goto_q([0, 10, 0, 0, 0]))
+    d.do(lambda m: m.goto_q([0, 10, 0, 0]))
     _drive(d, 10.0)
     assert arm.q_actual[1] == pytest.approx(8.5)
 
 
 def test_correction_gives_up_on_big_error():
     arm = FakeArm(sag=8.0)
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 10, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 10, 0, 0]))
     _drive(d, 10.0)
     assert arm.sent[-1][0][1] == pytest.approx(10) and "Not correcting" in d.message
 
 
 def test_new_command_cancels_correction():
     arm = FakeArm(sag=1.5)
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 10, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 10, 0, 0]))
     t = _drive(d, 2.0)
-    d.do(lambda m: m.follow([5, 10, 0, 0, 0]))     # new command (slider) — follow does not correct when it ends
+    d.do(lambda m: m.follow([5, 10, 0, 0]))     # new command (slider) — follow does not correct when it ends
     _drive(d, 5.0, t)
     assert max(q[1] for q, _t in arm.sent) == pytest.approx(10)    # no shoulder correction happened
 
 
 def test_emergency_stop_resets_to_actual():
     arm = FakeArm(sag=1.5)
-    d = Driver(arm, Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 10, 0, 0, 0]))
+    d = Driver(arm, Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 10, 0, 0]))
     _drive(d, 1.0)
     d.emergency_stop()
     assert not d.mover.busy and arm.stops == 1 and d.mover.q[1] == pytest.approx(arm.q_actual[1])
 
 
 def test_simulated_link_needs_no_volt():
-    d = Driver(SimLink(), Mover([0] * 5, v=10))
-    d.do(lambda m: m.goto_q([0, 3, 0, 0, 0]))
+    d = Driver(SimLink(), Mover([0] * 4, v=10))
+    d.do(lambda m: m.goto_q([0, 3, 0, 0]))
     _drive(d, 2.0)
     assert d.link.q_actual[1] == pytest.approx(3)
 
 
 def test_peek_does_not_change_mover():
-    m = Mover([0] * 5, v=30, a=90)
+    m = Mover([0] * 4, v=30, a=90)
     m.jog_joint(2, +1)
     for _ in range(20):
         m.step(DT)
@@ -147,7 +147,7 @@ def test_servo_speed_steady_despite_tick_jitter():
     import random
     rnd = random.Random(0)
     arm = FakeArm()
-    d = Driver(arm, Mover([0] * 5, v=30, a=90))
+    d = Driver(arm, Mover([0] * 4, v=30, a=90))
     d.correct = False
     d.do(lambda m: m.jog_joint(2, +1))
     t, speeds = 0.0, []
@@ -162,7 +162,7 @@ def test_servo_speed_steady_despite_tick_jitter():
 def test_correction_after_jog_release():
     """release a jog button with a 1.5° sag → correction brings the actual angle to the stop pose (≤ 0.5°)"""
     arm = FakeArm(sag=1.5)
-    d = Driver(arm, Mover([0] * 5, v=30, a=90))
+    d = Driver(arm, Mover([0] * 4, v=30, a=90))
     d.do(lambda m: m.jog_joint(1, +1))
     t = _drive(d, 0.5)
     d.do(lambda m: m.release())

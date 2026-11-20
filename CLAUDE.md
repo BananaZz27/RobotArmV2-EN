@@ -10,7 +10,7 @@ This repo is the English translation; code changes made in the Thai repo should 
 - The user prefers the assistant to run commands step by step and report results over clicking through the GUI
 
 ## Code
-- Calibration lives only in `src/config.py` (J5 head removed `used=False`, d5 = 50 mm)
+- Calibration lives only in `src/config.py` · 4-joint arm (J5 removed from the program 2026-11-20) · 4-row DH: a4 = 50 mm, θ₄ = −q₄, φ = θ2+θ3+θ4
 - `qt_app.py` (PyQt6, ws-control style) + `viewer3d.py` (PyVista) → `motion.py` (Mover, no hardware) → `driver.py` (40 ms thread) → `link.py` (DirectLink / SimLink)
 - Windows region set to Thai → `qt_app.main()` forces QLocale en-US, otherwise spin boxes show Thai digits
 - Tests: `cd src && ../.venv/Scripts/python.exe -m pytest -q`

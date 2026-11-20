@@ -34,9 +34,9 @@ text{font-family:'Sarabun','Noto Sans Thai','Leelawadee UI','Tahoma',sans-serif}
 <rect class="box" x="20" y="262" width="640" height="204" rx="10" stroke-width="0.5"/>
 <text class="tb" x="36" y="288">Proof: tip p = (x, y, z, φ) uses 4 joints (θ1…θ4) → Jacobian J = ∂p/∂θ is 4×4</text>
 <text xml:space="preserve" class="mono" x="36" y="316">1) base     x = r·cos θ1,  y = r·sin θ1          → det ∂(x,y)/∂(θ1,r)    = r</text>
-<text xml:space="preserve" class="mono" x="36" y="340">2) planar   r = a2·c2 + a3·c23 + d5·c234        → det ∂(r,z,φ)/∂(θ2,θ3,θ4)</text>
-<text xml:space="preserve" class="mono" x="36" y="360">             z = d1 + a2·s2 + a3·s23 + d5·s234      = a2·a3·sin θ3  (d5 cancels)</text>
-<text xml:space="preserve" class="mono" x="36" y="380">             φ = θ2 + θ3 + θ4 − 90°</text>
+<text xml:space="preserve" class="mono" x="36" y="340">2) planar   r = a2·c2 + a3·c23 + a4·c234        → det ∂(r,z,φ)/∂(θ2,θ3,θ4)</text>
+<text xml:space="preserve" class="mono" x="36" y="360">             z = d1 + a2·s2 + a3·s23 + a4·s234      = a2·a3·sin θ3  (a4 cancels)</text>
+<text xml:space="preserve" class="mono" x="36" y="380">             φ = θ2 + θ3 + θ4</text>
 <text class="tb" x="36" y="410">⇒ |det J| = r · a2 · a3 · |sin θ3|     = 0 when r = 0 or sin θ3 = 0</text>
 <text class="ts" x="36" y="434">Evidence: J computed numerically (each joint nudged 0.001°) → det equals the formula in every pose (300 random tests)</text>
 <text class="ts" x="36" y="454">Warns when r &lt; 20 mm or the elbow is within 10° of 0°/180° · tip jog stops before getting closer (can back out)</text>

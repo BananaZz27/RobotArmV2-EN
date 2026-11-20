@@ -25,14 +25,13 @@ LIMIT_MARGIN = 10      # shrink the limits inward from the positions actually re
 
 
 def pick_joints(name):
-    """'j1'..'j5' or 'all' (connected joints only) → list of joint dicts"""
-    used = [j for j in config.JOINTS if j["used"]]
+    """'j1'..'j4' or 'all' → list of joint dicts"""
     if name == "all":
-        return used
+        return list(config.JOINTS)
     for i, j in enumerate(config.JOINTS):
-        if name == f"j{i + 1}" and j["used"]:
+        if name == f"j{i + 1}":
             return [j]
-    sys.exit(f"Unknown joint '{name}' — use j1..j{len(config.JOINTS)} (connected ones) or all")
+    sys.exit(f"Unknown joint '{name}' — use j1..j{len(config.JOINTS)} or all")
 
 
 def read_all(bus, joints):
@@ -108,7 +107,7 @@ def save_standby(q, py_path=CONFIG_PY):
     """write the Standby pose into the STANDBY_Q line of config.py (a joint out of limits / nan → ValueError, nothing written)"""
     q = [round(float(v), 1) for v in q]
     for i, (j, v) in enumerate(zip(config.JOINTS, q)):
-        if j["used"] and not config.Q_MIN[i] <= v <= config.Q_MAX[i]:      # nan also fails this check
+        if not config.Q_MIN[i] <= v <= config.Q_MAX[i]:      # nan also fails this check
             raise ValueError(f"{j['name']} = {v}° outside {config.Q_MIN[i]:.1f}…{config.Q_MAX[i]:.1f}°")
     text = Path(py_path).read_text(encoding="utf-8")
     text, n = re.subn(r"^STANDBY_Q = \[[^\]]*\]", f"STANDBY_Q = {q}", text, flags=re.M)

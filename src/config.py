@@ -5,27 +5,23 @@
 D1 = 96.7    # base → shoulder axis (d1)
 A2 = 137.0   # shoulder → elbow (a2)
 A3 = 98.3    # elbow → wrist (a3)
-D5 = 50.0    # wrist → arm tip (d5) — head servo removed, re-measured 2026-11-19 (was 79.7 with the head)
+A4 = 50.0    # wrist → arm tip (a4) — no head servo, re-measured 2026-11-19 (was d5 = 79.7 with the head)
 
 # ---------- SCS15 servo ----------
 RAW_MAX = 1023
 DEG_RANGE = 250.0          # 0..1023 ticks ≈ 250° (measured by eye ±15° — re-measure in step 6)
 TICK_PER_DEG = RAW_MAX / DEG_RANGE
 
-# used: False = joint not connected (J5 head removed 2026-11-19) → locked at q = 0, never sent/read
-#       the equations stay 5-joint because J5 rolls about the last link and does not move the tip
+# 4-joint arm (J5 head removed 2026-11-19 → removed from the program 2026-11-20)
 # center: raw value when that link points straight up = q 0° (calibrate with calib_app.py)
-# dir: +1/−1 so that positive q = lean forward / base turns left (CCW seen from above) / head tilts right
+# dir: +1/−1 so that positive q = lean forward / base turns left (CCW seen from above)
 JOINTS = [
-    {"name": "J1 Base", "id": 4, "dir": -1, "center": 484, "raw_min": 10, "raw_max": 1012, "used": True},
-    {"name": "J2 Shoulder", "id": 9, "dir": -1, "center": 506, "raw_min": 107, "raw_max": 883, "used": True},
-    {"name": "J3 Elbow", "id": 7, "dir": +1, "center": 527, "raw_min": 10, "raw_max": 1012, "used": True},
-    {"name": "J4 Wrist", "id": 2, "dir": -1, "center": 522, "raw_min": 202, "raw_max": 821, "used": True},
-    {"name": "J5 Head", "id": 1, "dir": +1, "center": 511, "raw_min": 20, "raw_max": 1003, "used": False},
+    {"name": "J1 Base", "id": 4, "dir": -1, "center": 484, "raw_min": 10, "raw_max": 1012},
+    {"name": "J2 Shoulder", "id": 9, "dir": -1, "center": 506, "raw_min": 107, "raw_max": 883},
+    {"name": "J3 Elbow", "id": 7, "dir": +1, "center": 527, "raw_min": 10, "raw_max": 1012},
+    {"name": "J4 Wrist", "id": 2, "dir": -1, "center": 522, "raw_min": 202, "raw_max": 821},
 ]
 
-
-USED = [j["used"] for j in JOINTS]       # which joints are actually connected
 
 
 def raw_to_q(joint, raw):
@@ -64,7 +60,7 @@ JOG_STOP = 0.5             # releasing a jog button: decelerate at 0.5 × accel 
 IK_STEP_MM = 1.0           # step size when splitting a straight line into IK points
 
 # ---------- Standby pose: Connect moves the arm here slowly (set a new one with the 📌 button in the Joint tab) ----------
-STANDBY_Q = [0.0, 0.0, 100.0, 78.2, 0.0]
+STANDBY_Q = [0.0, 0.0, 100.0, 78.2]
 STANDBY_V = 60.0           # speed when going to Standby (°/s) — the power-on pose may be far away, so much slower than the sliders
 
 # ---------- Correction when the arm stops short of the target (driver.py) ----------
